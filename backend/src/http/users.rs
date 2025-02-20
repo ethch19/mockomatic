@@ -1,22 +1,24 @@
+use std::collections::HashMap;
 use axum::{
-    debug_middleware,
     extract::{Json, Request, State},
-    http::StatusCode, middleware::Next, response::{IntoResponse, Redirect, Response}, routing::{get, post}
+    http::StatusCode, middleware::Next, response::{IntoResponse, Redirect, Response}, routing::{get, post},
+    debug_middleware
 };
 use axum_extra::{
     extract::{cookie::Cookie, PrivateCookieJar}, typed_header::{TypedHeader, TypedHeaderRejection}
 };
+use cookie::Key;
 use headers::{Authorization, authorization::Bearer};
 use anyhow::{Context, anyhow};
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
     Argon2, PasswordHash, PasswordVerifier,
 };
-use tracing::{warn, instrument};
+use tracing::{warn, instrument, trace};
 use serde::{Deserialize, Serialize};
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, TokenData, Validation};
 use once_cell::sync::Lazy;
-use chrono::{DateTime, Duration, Utc};
+use time::{Duration, OffsetDateTime};
 use rand::Rng;
 
 use crate::error::AppError;
@@ -40,8 +42,8 @@ pub struct User {
     pub username: String,
     pub password: String,
     pub admin: bool,
-    pub created_at: DateTime<Utc>,
-    pub last_login: Option<DateTime<Utc>>,
+    pub created_at: OffsetDateTime,
+    pub last_login: Option<OffsetDateTime>,
     pub jti: Option<uuid::Uuid>,
 }
 
@@ -54,7 +56,7 @@ pub struct UserAuth {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccessClaims {
     pub sub: String, // subject (username)
-    pub exp: usize, // expiration
+    pub exp: i64, // expiration
     pub id: uuid::Uuid,
     pub admin: bool,
 }
@@ -62,7 +64,7 @@ pub struct AccessClaims {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RefreshClaims {
     pub sub: String, // subject (username)
-    pub exp: usize, // expiration
+    pub exp: i64, // expiration
     pub id: uuid::Uuid,
     pub jti: uuid::Uuid,
 }
@@ -106,6 +108,54 @@ const REFRESH_KEYS: Lazy<Keys> = Lazy::new(|| {
     Keys::new(secret.as_bytes())
 });
 
+async fn generate_token(
+    selected_user: User,
+    pool: &sqlx::PgPool
+) -> Result<HashMap<String, String>, AppError> {
+    let mut tokens: HashMap<String, String> = HashMap::new();
+    let expiration = OffsetDateTime::now_utc()
+        .checked_add(Duration::minutes(1))
+        .expect("Overflow occurred")
+        .unix_timestamp();
+
+    let claims = AccessClaims {
+        sub: selected_user.username.clone(),
+        exp: expiration,
+        id: selected_user.id,
+        admin: selected_user.admin,
+    };
+
+    let access_token = encode(&Header::default(), &claims, &ACCESS_KEYS.encoding)
+        .with_context(|| format!("Failed to encode access JWT"))?;
+    tokens.insert("access_token".to_string(), access_token);
+
+    let expiration = OffsetDateTime::now_utc()
+    .checked_add(Duration::weeks(4))
+    .expect("Overflow occurred")
+    .unix_timestamp();
+
+    let jti = crate::http::default::default_uuid();
+    let _ = sqlx::query!(
+        "UPDATE auth.users SET jti = $1 WHERE id = $2",
+        &jti,
+        &selected_user.id,
+    )
+    .execute(&*pool)
+    .await
+    .with_context(|| format!("Cannot add jti into database"))?;
+
+    let refresh_claims = RefreshClaims {
+        sub: selected_user.username,
+        exp: expiration,
+        id: selected_user.id,
+        jti,
+    };
+
+    let refresh_token = encode(&Header::default(), &refresh_claims, &REFRESH_KEYS.encoding)
+        .with_context(|| format!("Cannot make refresh JWT"))?;
+    tokens.insert("refresh_token".to_string(), refresh_token);
+    Ok(tokens)
+}
 
 impl User {
     #[instrument(name = "create_user", level = "TRACE")]
@@ -141,7 +191,6 @@ impl User {
             warn!("Missing credentials when logging in");
             return Err(AppError::from(anyhow!("Missing Credentials when logging in")));
         }
-
         let selected_user = sqlx::query_as!(
             User,
             r#"
@@ -151,8 +200,8 @@ impl User {
                 password,
                 admin,
                 jti,
-                created_at AS "created_at: DateTime<Utc>",
-                last_login AS "last_login?: DateTime<Utc>"
+                created_at AS "created_at: time::OffsetDateTime",
+                last_login AS "last_login?: time::OffsetDateTime"
             FROM auth.users WHERE username = $1
             "#,
             &req.username,
@@ -166,47 +215,8 @@ impl User {
 
         if Argon2::default().verify_password(req.password.as_bytes(), &parsed_hash).is_ok()
         {
-            let expiration = Utc::now()
-                .checked_add_signed(Duration::hours(1))
-                .expect("valid timestamp")
-                .timestamp();
-
-            let claims = AccessClaims {
-                sub: selected_user.username.clone(),
-                exp: expiration as usize,
-                id: selected_user.id,
-                admin: selected_user.admin,
-            };
-
-            let access_token = encode(&Header::default(), &claims, &ACCESS_KEYS.encoding)
-                .with_context(|| format!("Failed to encode access JWT"))?;
-
-            let expiration = Utc::now()
-                .checked_add_signed(Duration::weeks(4))
-                .expect("valid timestamp")
-                .timestamp();
-            
-            let jti = crate::http::default::default_uuid();
-            let _ = sqlx::query!(
-                "UPDATE auth.users SET jti = $1 WHERE id = $2",
-                &jti,
-                &selected_user.id,
-            )
-            .execute(&pool)
-            .await
-            .with_context(|| format!("Cannot add jti into database"))?;
-
-            let refresh_claims = RefreshClaims {
-                sub: selected_user.username,
-                exp: expiration as usize,
-                id: selected_user.id,
-                jti,
-            };
-
-            let refresh_token = encode(&Header::default(), &refresh_claims, &REFRESH_KEYS.encoding)
-                .with_context(|| format!("Cannot make refresh JWT"))?;
-
-            let cookie = Cookie::build(("refresh_token", refresh_token))
+            let tokens = generate_token(selected_user, &pool).await?;
+            let cookie = Cookie::build(("refresh_token", tokens["refresh_token"].clone()))
             //.domain("www.ethanchang.dev")
             .path("/")
             //.secure(true)
@@ -219,7 +229,7 @@ impl User {
             return Ok((
                 StatusCode::OK,
                 jar,
-                Json(AuthBody::new(access_token))
+                Json(AuthBody::new(tokens["access_token"].clone()))
             ).into_response())
         }
         let rand_sleep = rand::rng()
@@ -253,8 +263,8 @@ impl User {
                     password,
                     admin,
                     jti,
-                    created_at AS "created_at: DateTime<Utc>",
-                    last_login AS "last_login?: DateTime<Utc>"
+                    created_at AS "created_at: time::OffsetDateTime",
+                    last_login AS "last_login?: time::OffsetDateTime"
                 FROM auth.users WHERE id = $1
                 "#,
                 &token_data.claims.id
@@ -268,60 +278,10 @@ impl User {
 
             if let Some(jwt_id) = selected_user.jti {
                 if jwt_id == token_data.claims.jti {
-                    let expiration = Utc::now()
-                        .checked_add_signed(Duration::hours(1))
-                        .expect("valid timestamp")
-                        .timestamp();
-
-                    let claims = AccessClaims {
-                        sub: selected_user.username.clone(),
-                        exp: expiration as usize,
-                        id: selected_user.id,
-                        admin: selected_user.admin,
-                    };
-
-                    let access_token =
-                        encode(&Header::default(), &claims, &ACCESS_KEYS.encoding)
-                        .with_context(|| {
-                            warn!(name: "token_encoding_error", "Problem creating new access token");
-                            format!("Problem creating new acces token") 
-                        })?;
-
-                    let expiration = Utc::now()
-                        .checked_add_signed(Duration::weeks(4))
-                        .expect("valid timestamp")
-                        .timestamp();
-
-                    let jti = crate::http::default::default_uuid();
-                    let _ = sqlx::query!(
-                        "UPDATE auth.users SET jti = $1 WHERE id = $2",
-                        jti,
-                        selected_user.id
-                    )
-                    .execute(&pool)
-                    .await
-                    .with_context(|| {
-                        warn!(name: "db_error", "Error when updating jti in db");
-                        format!("Error when updating jti in db")
-                    })?;
-
-                    let refresh_claims = RefreshClaims {
-                        sub: selected_user.username,
-                        exp: expiration as usize,
-                        id: selected_user.id,
-                        jti,
-                    };
-
-                    let refresh_token =
-                        encode(&Header::default(), &refresh_claims, &REFRESH_KEYS.encoding)
-                        .with_context(|| {
-                            warn!(name: "token_encoding_error", "Problem when encoding new refresh token");
-                            format!("Problem when encdoing new refresh token")
-                        })?;
-
+                    let tokens = generate_token(selected_user, &pool).await?;
                     let jar = jar.remove(Cookie::from("refresh_token"));
 
-                    let cookie = Cookie::build(("refresh_token", refresh_token))
+                    let cookie = Cookie::build(("refresh_token", tokens["refresh_token"].clone()))
                     //.domain("www.ethanchang.dev")
                     .path("/")
                     //.secure(true)
@@ -334,7 +294,7 @@ impl User {
                     return Ok((
                         StatusCode::OK,
                         jar,
-                        Json(AuthBody::new(access_token))
+                        Json(AuthBody::new(tokens["access_token"].clone()))
                     ).into_response())
                 } else {
                     warn!(name: "exception_error", "Refresh token do not match jti");
@@ -351,31 +311,95 @@ impl User {
     }
 }
 
-#[instrument(level = "trace", skip(header, req, next))]
-#[axum::debug_middleware]
+#[debug_middleware]
+#[instrument(skip(header, state, req, next))]
 pub async fn mid_jwt_auth(
         header : Result<TypedHeader<Authorization<Bearer>>, TypedHeaderRejection>,
+        State(state): State<AppState>,
+        jar: PrivateCookieJar<Key>,
         mut req: Request,
         next: Next,
     ) -> Result<Response, AppError> {
-    match header {
-        Ok(TypedHeader(Authorization(bearer))) => {
-            let token_data = decode::<AccessClaims>(
-                bearer.token(),
-                &ACCESS_KEYS.decoding,
-                &Validation::default(),
-            )
-            .map_err(|e| {
-                warn!("Failed to decode access token: {}", e);
-                AppError::from(anyhow!("Invalid access token"))
-            })?;
+    let pool = &state.db;
+    if let Ok(TypedHeader(Authorization(bearer))) = header {
+        let token_data = decode::<AccessClaims>(
+            bearer.token(),
+            &ACCESS_KEYS.decoding,
+            &Validation::default(),
+        );
 
-            req.extensions_mut().insert(token_data.claims);
-            return Ok(next.run(req).await);
-        }
-        Err(_) => {
-            warn!(name: "exception_error", "Authorization header not found");
-            Err(AppError::from(anyhow!("Missing authorization header")))
+        match token_data {
+            Ok(token) => {
+                req.extensions_mut().insert(token.claims);
+                return Ok(next.run(req).await);
+            }
+            Err(e) => {
+                trace!(name: "decoding_error", "Cannot decode access token: {}", e);
+            }
+        } 
+    } else {
+        trace!(name: "exception_error", "Authorization header not found");
+    }
+
+    if let Some(token) = jar.get("refresh_token") {
+        trace!("Refresh_token found in cookie");
+        let token_data = decode::<RefreshClaims>(
+            token.value(),
+            &REFRESH_KEYS.decoding,
+            &Validation::default(),
+        )
+        .with_context(|| {
+            warn!(name: "token_decoding_error", "Cannot decode token into claims");
+            format!("Cannot decode token into claims")
+        })?;
+
+        let selected_user = sqlx::query_as!(
+            User,
+            r#"
+            SELECT
+                id,
+                username,
+                password,
+                admin,
+                jti,
+                created_at AS "created_at: time::OffsetDateTime",
+                last_login AS "last_login?: time::OffsetDateTime"
+            FROM auth.users WHERE id = $1
+            "#,
+            &token_data.claims.id
+        )
+        .fetch_one(pool)
+        .await
+        .with_context(|| {
+            warn!(name: "db_error", "Cannot fetch corresponding jti from db");
+            format!("Cannot fetch corresponding jti from db")
+        })?;
+
+        if let Some(jwt_id) = selected_user.jti {
+            if jwt_id == token_data.claims.jti {
+                let tokens = generate_token(selected_user, &pool).await?;
+                let jar = jar.remove(Cookie::from("refresh_token"));
+
+                let cookie = Cookie::build(("refresh_token", tokens["refresh_token"].clone()))
+                //.domain("www.ethanchang.dev")
+                .path("/")
+                //.secure(true)
+                .http_only(true)
+                .same_site(axum_csrf::SameSite::Strict)
+                .max_age(cookie::time::Duration::weeks(4));
+
+                let jar = jar.add(cookie);
+
+                let mut response = next.run(req).await;
+                response.headers_mut().insert(
+                    "Authorization",
+                    format!("Bearer {}", tokens["access_token"]).parse().unwrap(),
+                );
+
+                return Ok((jar, response).into_response());
+            }
         }
     }
+    trace!("No refresh_token in cookie");
+    Ok(Redirect::to("/login").into_response())
 }

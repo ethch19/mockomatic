@@ -1,0 +1,1 @@
+ALTER TABLE records.sessions RENAME COLUMN date to scheduled_date;

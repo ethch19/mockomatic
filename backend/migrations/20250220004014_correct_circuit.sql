@@ -1,0 +1,1 @@
+ALTER TABLE records.circuits DROP CONSTRAINT circuits_session_id_key_key;

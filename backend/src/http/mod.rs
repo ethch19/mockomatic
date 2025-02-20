@@ -1,10 +1,11 @@
-use axum::{middleware::from_fn, Router, extract::FromRef};
+use axum::{middleware::from_fn_with_state, Router, extract::FromRef};
 use anyhow::Result;
 use axum_extra::extract::cookie::Key;
 
 mod users;
 mod default;
-mod session;
+mod sessions;
+mod pg_interval;
 
 use crate::http::users::mid_jwt_auth;
 
@@ -34,8 +35,8 @@ pub fn router_app(db: sqlx::PgPool) -> Router {
     };
     let v1_routes = Router::new()
         .nest("/users", users::router())
-        .nest("/dev", session::router())
-        .layer(from_fn(mid_jwt_auth))
+        .nest("/sessions", sessions::router())
+        .layer(from_fn_with_state(app_state.clone(), mid_jwt_auth))
         .nest("/users", users::login_router());
     Router::new()
         .nest("/api/v1", v1_routes)

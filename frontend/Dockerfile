@@ -19,4 +19,4 @@ COPY --from=build /app/.nuxt /app/.nuxt
 ARG PORT=3000
 ENV PORT=$NUXT_PORT
 EXPOSE $NUXT_PORT
-CMD [ "pnpm", "start" ]
+CMD [ "node", ".output/server/index.mjs" ]

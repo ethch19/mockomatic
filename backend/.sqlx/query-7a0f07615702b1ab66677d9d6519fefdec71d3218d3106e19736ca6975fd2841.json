@@ -1,0 +1,80 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    INSERT INTO records.circuits (session_id, slot_id, key, female_only, intermission)\n                    VALUES ($1, $2, $3, $4, $5)\n                    RETURNING *\n                    ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "session_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "slot_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "key",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "female_only",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "current_rotation",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 6,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "intermission",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "timer_start",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "timer_end",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Bpchar",
+        "Bool",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "7a0f07615702b1ab66677d9d6519fefdec71d3218d3106e19736ca6975fd2841"
+}

@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO records.sessions (organiser_id, organisation, scheduled_date, location, total_stations, intermission_duration, static_at_end)\n            VALUES ($1, $2, $3, $4, $5, $6, $7)\n            RETURNING *\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "organiser_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "organisation",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "scheduled_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 4,
+        "name": "location",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "total_stations",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 6,
+        "name": "intermission_duration",
+        "type_info": "Interval"
+      },
+      {
+        "ordinal": 7,
+        "name": "static_at_end",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Date",
+        "Text",
+        "Int2",
+        "Interval",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "65dc9c9ea40a43a42aabc42efe305b6eb75a58e9482a6926b414c02672971351"
+}

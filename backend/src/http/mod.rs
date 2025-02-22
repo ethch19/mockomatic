@@ -8,11 +8,12 @@ use tower_http::{
 use serde::Deserialize;
 
 mod users;
+mod people;
 mod default;
 mod sessions;
+//mod templates;
 mod pg_interval;
 mod option_pg_interval;
-mod people;
 
 use crate::http::users::mid_jwt_auth;
 

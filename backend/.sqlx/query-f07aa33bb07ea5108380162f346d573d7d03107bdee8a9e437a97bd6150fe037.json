@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT * FROM people.candidates WHERE session_id = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "session_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "shortcode",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "female_only",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "partner_pref",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "checked_in",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "slot",
+        "type_info": "Bpchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "f07aa33bb07ea5108380162f346d573d7d03107bdee8a9e437a97bd6150fe037"
+}

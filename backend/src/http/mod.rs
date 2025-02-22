@@ -66,7 +66,7 @@ pub fn router_app(db: sqlx::PgPool) -> Router {
                 .allow_private_network(true)
                 .allow_credentials(true)
                 .allow_origin(["http://localhost:3000".parse::<http::HeaderValue>().unwrap(),
-                "http://127.0.0.1:8080".parse::<http::HeaderValue>().unwrap()])
+                "http://0.0.0.0:8080".parse::<http::HeaderValue>().unwrap()])
         )
         .layer(
             TraceLayer::new_for_http()
@@ -74,7 +74,7 @@ pub fn router_app(db: sqlx::PgPool) -> Router {
 }
 
 pub async fn serve(db: sqlx::PgPool) -> Result<()> {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:8080").await.unwrap();
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
     
     axum::serve(listener, router_app(db)).await;
     Ok(())

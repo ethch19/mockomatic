@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 734.87 166.69">
+  <defs>
+    <style>
+      .cls-1 {
+        letter-spacing: -.09em;
+      }
+
+      .cls-1, .cls-2 {
+        fill: #2b2a28;
+      }
+
+      .cls-3 {
+        font-family: InterItalic-ExtraBoldItalic, Inter;
+        font-size: 100px;
+        font-style: italic;
+        font-variation-settings: 'opsz' 14, 'wght' 800;
+        font-weight: 700;
+      }
+
+      .cls-4 {
+        fill: #f59e0b;
+        letter-spacing: -.04em;
+      }
+    </style>
+  </defs>
+  <text class="cls-3" transform="translate(4.52 119.72)"><tspan class="cls-2" x="0" y="0">MOC</tspan><tspan class="cls-4" x="246.04" y="0">K</tspan><tspan class="cls-2" x="315.62" y="0">OM</tspan><tspan class="cls-1" x="487.3" y="0">A</tspan><tspan class="cls-2" x="555.22" y="0">TIC</tspan></text>
+</svg>

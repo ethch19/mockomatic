@@ -1,16 +1,20 @@
 use anyhow::{Context, anyhow};
-use axum::{extract::{Json, State}, response::IntoResponse, routing::{get, post}, Extension, http::StatusCode};
+use axum::{extract::{Json, Query, State}, http::StatusCode, response::IntoResponse, routing::{get, post}, Extension};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use super::{users::AccessClaims, AppState};
+use super::{users::AccessClaims, AppState, SomethingID, SomethingMultipleID};
 use crate::error::AppError;
 use sqlx::postgres::types::PgInterval;
-use tracing::{instrument, trace, warn};
+use tracing::{instrument, trace};
 
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/test", get(test_function))
         .route("/create", post(Session::create))
+        .route("/update", post(Session::update))
+        .route("/delete", post(Session::delete))
+        .route("/get", post(Session::get))
+        .route("/get-page", get(Session::get_page))
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -74,6 +78,19 @@ pub struct Session {
     pub created_at: time::OffsetDateTime
 }
 
+#[derive(Debug, Deserialize)]
+pub struct SessionChange {
+    pub id: Uuid,
+    pub organiser_id: Uuid,
+    pub organisation: Option<String>,
+    pub scheduled_date: Option<time::Date>,
+    pub location: Option<String>,
+    pub total_stations: Option<i16>,
+    #[serde(default, with = "crate::http::option_pg_interval")]
+    pub intermission_duration: Option<PgInterval>,
+    pub static_at_end: Option<bool>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Slot {
     pub id: Uuid,
@@ -121,6 +138,22 @@ pub struct Station {
     pub duration: PgInterval,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct PaginationParams {
+    pub first: i64, // Offset (starting position)
+    pub rows: i64, // Limit (number of rows per page)
+    #[serde(rename = "sortField")]
+    pub sort_field: Option<String>,
+    #[serde(rename = "sortOrder")]
+    pub sort_order: Option<i32>, // 1 for ascending, -1 for descending
+}
+
+#[derive(Debug, Serialize)]
+struct PaginationResponse {
+    sessions: Vec<Session>,
+    total: i64,
+}
+
 async fn test_function(
     Extension(user): Extension<AccessClaims>
 ) -> impl IntoResponse {
@@ -129,7 +162,7 @@ async fn test_function(
 }
 
 impl Session {
-    #[instrument(name = "create_session", level = "TRACE")]
+    #[instrument(name = "create_session", level = "TRACE", skip(user))]
     pub async fn create(
         State(pool): State<sqlx::PgPool>,
         Extension(user): Extension<AccessClaims>,
@@ -248,5 +281,165 @@ impl Session {
         transaction.commit().await.with_context(|| format!("Rolled back successful. Transaction failed to commit"))?;
         
         Ok((StatusCode::CREATED, Json(session_result)))
+    }
+
+    pub async fn get(
+        State(pool): State<sqlx::PgPool>,
+        Json(session): Json<SomethingID>,
+    ) -> Result<impl IntoResponse, AppError> {
+        let result = sqlx::query_as!(
+            Session,
+            r#"
+            SELECT * FROM records.sessions WHERE id = $1
+            "#,
+            session.id
+        )
+        .fetch_one(&pool)
+        .await
+        .with_context(|| format!("Cannot get session with specific id"))?;
+
+        Ok((StatusCode::OK, Json(result)).into_response())
+    }
+
+    #[instrument(name = "get_page", level = "TRACE")]
+    pub async fn get_page(
+        State(pool): State<sqlx::PgPool>,
+        Query(params): Query<PaginationParams>
+    ) -> Result<impl IntoResponse, AppError> {
+        let first = params.first.max(0);
+        let rows = params.rows.clamp(1, 100);
+
+        let sort_field = params.sort_field.unwrap_or_else(|| "scheduled_date".to_string());
+        let sort_order = params.sort_order.unwrap_or(-1);
+        let is_ascending = sort_order == 1;
+
+        let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM records.sessions")
+            .fetch_one(&pool)
+            .await
+            .with_context(|| format!("Cannot get sessions count"))?;
+
+        let sessions = match (sort_field.as_str(), is_ascending) {
+            ("created_at", true) => sqlx::query_as!(
+                Session,
+                r#"
+                SELECT *
+                FROM records.sessions
+                ORDER BY created_at ASC
+                OFFSET $1 LIMIT $2
+                "#,
+                first,
+                rows
+            )
+            .fetch_all(&pool)
+            .await
+            .with_context(|| format!("Cannot get sessions page"))?,
+    
+            ("created_at", false) => sqlx::query_as!(
+                Session,
+                r#"
+                SELECT *
+                FROM records.sessions
+                ORDER BY created_at DESC
+                OFFSET $1 LIMIT $2
+                "#,
+                first,
+                rows
+            )
+            .fetch_all(&pool)
+            .await
+            .with_context(|| format!("Cannot get sessions page"))?,
+    
+            // Default to scheduled_date (both true and false cases)
+            (_, true) => sqlx::query_as!(
+                Session,
+                r#"
+                SELECT *
+                FROM records.sessions
+                ORDER BY scheduled_date ASC
+                OFFSET $1 LIMIT $2
+                "#,
+                first,
+                rows
+            )
+            .fetch_all(&pool)
+            .await
+            .with_context(|| format!("Cannot get sessions page"))?,
+    
+            (_, false) => sqlx::query_as!(
+                Session,
+                r#"
+                SELECT *
+                FROM records.sessions
+                ORDER BY scheduled_date DESC
+                OFFSET $1 LIMIT $2
+                "#,
+                first,
+                rows
+            )
+            .fetch_all(&pool)
+            .await
+            .with_context(|| format!("Cannot get sessions page"))?,
+        };
+
+        Ok((StatusCode::OK, Json(PaginationResponse { sessions, total })).into_response())
+    }
+
+    pub async fn update(
+        State(pool): State<sqlx::PgPool>,
+        Extension(claim): Extension<AccessClaims>,
+        Json(session): Json<SessionChange>,
+    ) -> Result<impl IntoResponse, AppError> {
+        if !claim.admin {
+            return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
+        }
+        let _ = sqlx::query!(
+            r#"
+            UPDATE records.sessions
+            SET
+                organisation = COALESCE($3, organisation),
+                scheduled_date = COALESCE($4, scheduled_date),
+                location = COALESCE($5, location),
+                intermission_duration = COALESCE($6, intermission_duration),
+                static_at_end = COALESCE($7, static_at_end)
+            WHERE id = $1 AND organiser_id = $2
+            "#,
+            session.id,
+            session.organiser_id,
+            session.organisation,
+            session.scheduled_date,
+            session.location,
+            session.intermission_duration,
+            session.static_at_end
+        )
+        .execute(&pool)
+        .await
+        .with_context(|| format!("Cannot update session: {}", session.id))?;
+
+        Ok(StatusCode::OK.into_response())
+    }
+
+    pub async fn delete(
+        State(pool): State<sqlx::PgPool>,
+        Extension(claim): Extension<AccessClaims>,
+        Json(session): Json<SomethingMultipleID>,
+    ) -> Result<impl IntoResponse, AppError> {
+        if !claim.admin {
+            return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
+        }
+
+        for session_id in &session.ids {
+            let _ = sqlx::query!(
+                r#"
+                DELETE FROM records.sessions
+                WHERE id = $1
+                "#,
+                session_id
+            )
+            .execute(&pool)
+            .await
+            .with_context(|| format!("Cannot delete session with ID: {}", session_id))?;
+        }
+
+        Ok(StatusCode::OK.into_response())
     }
 }

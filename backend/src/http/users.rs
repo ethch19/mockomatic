@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use axum::{
     extract::{Json, Request, State},
-    http::StatusCode, middleware::Next, response::{IntoResponse, Redirect, Response}, routing::{get, post},
+    http::StatusCode, middleware::Next, response::{IntoResponse, Response}, routing::{get, post},
     debug_middleware
 };
 use axum_extra::{
@@ -16,7 +16,7 @@ use argon2::{
 };
 use tracing::{warn, instrument, trace};
 use serde::{Deserialize, Serialize};
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, TokenData, Validation};
+use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use once_cell::sync::Lazy;
 use time::{Duration, OffsetDateTime};
 use rand::Rng;
@@ -34,6 +34,7 @@ pub fn login_router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/login", post(User::login))
         .route("/refresh", get(User::refresh_token))
+        .route("/validate", get(User::validate_token))
 }
 
 #[derive(sqlx::FromRow, Debug, Deserialize, Serialize)]
@@ -109,7 +110,7 @@ const REFRESH_KEYS: Lazy<Keys> = Lazy::new(|| {
 });
 
 async fn generate_token(
-    selected_user: User,
+    selected_user: &User,
     pool: &sqlx::PgPool
 ) -> Result<HashMap<String, String>, AppError> {
     let mut tokens: HashMap<String, String> = HashMap::new();
@@ -145,9 +146,9 @@ async fn generate_token(
     .with_context(|| format!("Cannot add jti into database"))?;
 
     let refresh_claims = RefreshClaims {
-        sub: selected_user.username,
+        sub: selected_user.username.clone(),
         exp: expiration,
-        id: selected_user.id,
+        id: selected_user.id.clone(),
         jti,
     };
 
@@ -215,13 +216,13 @@ impl User {
 
         if Argon2::default().verify_password(req.password.as_bytes(), &parsed_hash).is_ok()
         {
-            let tokens = generate_token(selected_user, &pool).await?;
+            let tokens = generate_token(&selected_user, &pool).await?;
             let cookie = Cookie::build(("refresh_token", tokens["refresh_token"].clone()))
             //.domain("www.ethanchang.dev")
             .path("/")
             //.secure(true)
             .http_only(true)
-            .same_site(axum_csrf::SameSite::Strict)
+            .same_site(axum_csrf::SameSite::None) // change back to STRICT
             .max_age(cookie::time::Duration::weeks(4));
 
             let jar = jar.add(cookie);
@@ -278,7 +279,7 @@ impl User {
 
             if let Some(jwt_id) = selected_user.jti {
                 if jwt_id == token_data.claims.jti {
-                    let tokens = generate_token(selected_user, &pool).await?;
+                    let tokens = generate_token(&selected_user, &pool).await?;
                     let jar = jar.remove(Cookie::from("refresh_token"));
 
                     let cookie = Cookie::build(("refresh_token", tokens["refresh_token"].clone()))
@@ -286,7 +287,7 @@ impl User {
                     .path("/")
                     //.secure(true)
                     .http_only(true)
-                    .same_site(axum_csrf::SameSite::Strict)
+                    .same_site(axum_csrf::SameSite::None) // change back to STRICT
                     .max_age(cookie::time::Duration::weeks(4));
 
                     let jar = jar.add(cookie);
@@ -309,10 +310,34 @@ impl User {
             Err(AppError::from(anyhow!("Error during token creation")))
         } 
     }
+
+    async fn validate_token(
+        header : Result<TypedHeader<Authorization<Bearer>>, TypedHeaderRejection>
+    ) -> Result<StatusCode, AppError> {
+        if let Ok(TypedHeader(Authorization(bearer))) = header {
+            let token_data = decode::<AccessClaims>(
+                bearer.token(),
+                &ACCESS_KEYS.decoding,
+                &Validation::default(),
+            );
+    
+            match token_data {
+                Ok(_) => {
+                    return Ok(StatusCode::OK);
+                }
+                Err(e) => {
+                    trace!(name: "decoding_error", "Cannot decode access token: {}", e);
+                }
+            } 
+        } else {
+            trace!(name: "exception_error", "Authorization header not found");
+        }
+        Ok(StatusCode::FORBIDDEN)
+    }
 }
 
 #[debug_middleware]
-#[instrument(skip(header, state, req, next))]
+#[instrument(name = "jwt_auth_middleware", level = "TRACE", skip(header, jar, state, req, next))]
 pub async fn mid_jwt_auth(
         header : Result<TypedHeader<Authorization<Bearer>>, TypedHeaderRejection>,
         State(state): State<AppState>,
@@ -377,7 +402,7 @@ pub async fn mid_jwt_auth(
 
         if let Some(jwt_id) = selected_user.jti {
             if jwt_id == token_data.claims.jti {
-                let tokens = generate_token(selected_user, &pool).await?;
+                let tokens = generate_token(&selected_user, &pool).await?;
                 let jar = jar.remove(Cookie::from("refresh_token"));
 
                 let cookie = Cookie::build(("refresh_token", tokens["refresh_token"].clone()))
@@ -385,10 +410,22 @@ pub async fn mid_jwt_auth(
                 .path("/")
                 //.secure(true)
                 .http_only(true)
-                .same_site(axum_csrf::SameSite::Strict)
+                .same_site(axum_csrf::SameSite::None) // change back to STRICT
                 .max_age(cookie::time::Duration::weeks(4));
 
                 let jar = jar.add(cookie);
+
+                let expiration = OffsetDateTime::now_utc()
+                    .checked_add(Duration::minutes(1))
+                    .expect("Overflow occurred")
+                    .unix_timestamp();
+                let temp_claim = AccessClaims {
+                    sub: selected_user.username, // subject (username)
+                    exp: expiration, // expiration
+                    id: selected_user.id,
+                    admin: selected_user.admin,
+                };
+                req.extensions_mut().insert(temp_claim);
 
                 let mut response = next.run(req).await;
                 response.headers_mut().insert(
@@ -401,5 +438,5 @@ pub async fn mid_jwt_auth(
         }
     }
     trace!("No refresh_token in cookie");
-    Ok(Redirect::to("/login").into_response())
+    Ok(StatusCode::UNAUTHORIZED.into_response())
 }

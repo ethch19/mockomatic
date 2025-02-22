@@ -1,5 +1,5 @@
 ARG NODE_VERSION=22
-FROM node:${NODE_VERSION}-slim
+FROM node:${NODE_VERSION}-slim AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
@@ -17,6 +17,6 @@ FROM base
 COPY --from=prod-deps /app/node_modules /app/node_modules
 COPY --from=build /app/dist /app/dist
 ARG PORT=3000
-ENV PORT=$PORT
-EXPOSE $PORT
+ENV PORT=$NUXT_PORT
+EXPOSE $NUXT_PORT
 CMD [ "pnpm", "start" ]

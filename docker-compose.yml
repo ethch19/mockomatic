@@ -1,20 +1,23 @@
 version: '3.8'
 services:
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: ethch19/mockomatic_frontend:latest
     container_name: nuxt_frontend
+    envrionment:
+      - NUXT_PORT=${NUXT_PORT}
     expose:
       - "3000"
     networks:
       - app-network
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: ethch19/mockomatic_backend:latest
     container_name: rust_backend
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - RUST_PORT=${RUST_PORT}
+      - ACCESS_JWT_SECRET=${ACCESS_JWT_SECRET}
+      - REFRESH_JWT_SECRET=${REFRESH_JWT_SECRET}
     expose:
       - "8080"
     depends_on:
@@ -30,9 +33,9 @@ services:
       expose:
         - "5432"
       environment:
-        - POSTGRES_USER=user
-        - POSTGRES_PASSWORD=password
-        - POSTGRES_DB=mydb
+        - POSTGRES_USER=${POSTGRES_USER}
+        - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+        - POSTGRES_DB=${POSTGRES_DB}
       healthcheck:
         test: ["CMD", "pg_isready"]
         interval: 1s

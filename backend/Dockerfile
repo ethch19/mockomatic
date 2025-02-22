@@ -9,5 +9,7 @@ RUN cargo build --release
 FROM debian:bookworm-slim
 WORKDIR /app
 COPY --from=builder /app/target/release/backend .
-EXPOSE 8080
+ARG PORT=8080
+ENV PORT=$RUST_PORT
+EXPOSE $RUST_PORT 
 CMD ["./backend"]

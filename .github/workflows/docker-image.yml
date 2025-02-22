@@ -28,7 +28,7 @@ jobs:
           context: ./frontend
           file: ./frontend/Dockerfile
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/frontend:latest
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/mockomatic_frontend:latest
 
       - name: Build and push Rust Backend image
         uses: docker/build-push-action@v4
@@ -36,4 +36,4 @@ jobs:
           context: ./backend
           file: ./backend/Dockerfile
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/backend:latest
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/mockomatic_backend:latest

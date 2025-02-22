@@ -53,9 +53,6 @@ services:
       - "80"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf
-    environment:
-      - NUXT_PORT=${NUXT_PORT}
-      - RUST_PORT=${RUST_PORT}
     depends_on:
       - frontend
       - backend

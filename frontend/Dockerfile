@@ -15,7 +15,7 @@ RUN pnpm run build
 
 FROM base
 COPY --from=prod-deps /app/node_modules /app/node_modules
-COPY --from=build /app/.nuxt /app/.nuxt
+COPY --from=build /app/.output /app/.output
 ARG PORT=3000
 ENV PORT=$NUXT_PORT
 EXPOSE $NUXT_PORT

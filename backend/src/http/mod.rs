@@ -57,7 +57,7 @@ pub fn router_app(db: sqlx::PgPool) -> Router {
         .layer(from_fn_with_state(app_state.clone(), mid_jwt_auth))
         .nest("/users", users::login_router());
     Router::new()
-        .nest("/api/v1", v1_routes)
+        .nest("/v1", v1_routes)
         .with_state(app_state)
         .layer(
             CorsLayer::new()

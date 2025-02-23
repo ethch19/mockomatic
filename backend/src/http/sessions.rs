@@ -2,7 +2,7 @@ use anyhow::{Context, anyhow};
 use axum::{extract::{Json, Query, State}, http::StatusCode, response::IntoResponse, routing::{get, post}, Extension};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use super::{users::AccessClaims, AppState, SomethingID, SomethingMultipleID};
+use super::{users::AccessClaims, AppState, SomethingID, SomethingMultipleID, circuits::Circuit, runs::Run, slots::{Slot, SlotPayload}, stations::{Station, StationPayload}};
 use crate::error::AppError;
 use sqlx::postgres::types::PgInterval;
 use tracing::{instrument, trace};
@@ -15,52 +15,6 @@ pub fn router() -> axum::Router<AppState> {
         .route("/delete", post(Session::delete))
         .route("/get", post(Session::get))
         .route("/get-page", get(Session::get_page))
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct CreateSessionPayload {
-    pub session: SessionPayload,
-    pub stations: Vec<StationPayload>,
-    pub slots: Vec<SlotPayload> // runs and circuits inside slots
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SessionPayload {
-    pub organisation: String,
-    pub scheduled_date: time::Date,
-    pub location: String,
-    #[serde(default, with = "crate::http::pg_interval")]
-    pub intermission_duration: PgInterval,
-    pub static_at_end: bool
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct StationPayload {
-    pub title: String,
-    pub index: i16,
-    #[serde(default, with = "crate::http::pg_interval")]
-    pub duration: PgInterval,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SlotPayload {
-    pub slot_time: String,
-    pub runs: Vec<RunPayload>,
-    pub circuits: Vec<CircuitPayload>
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RunPayload {
-    #[serde(with = "time::serde::iso8601")]
-    pub scheduled_start: time::OffsetDateTime,
-    #[serde(with = "time::serde::iso8601")]
-    pub scheduled_end: time::OffsetDateTime
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct CircuitPayload {
-    pub key: String, // A-Z
-    pub female_only: bool
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -78,6 +32,16 @@ pub struct Session {
     pub created_at: time::OffsetDateTime
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SessionPayload {
+    pub organisation: String,
+    pub scheduled_date: time::Date,
+    pub location: String,
+    #[serde(default, with = "crate::http::pg_interval")]
+    pub intermission_duration: PgInterval,
+    pub static_at_end: bool
+}
+
 #[derive(Debug, Deserialize)]
 pub struct SessionChange {
     pub id: Uuid,
@@ -92,51 +56,12 @@ pub struct SessionChange {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Slot {
-    pub id: Uuid,
-    pub session_id: Uuid,
-    pub slot_time: String
+pub struct CreateSessionPayload {
+    pub session: SessionPayload,
+    pub stations: Vec<StationPayload>,
+    pub slots: Vec<SlotPayload> // runs and circuits inside slots
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Run {
-    pub id: Uuid,
-    pub slot_id: Uuid,
-    #[serde(with = "time::serde::iso8601")]
-    pub scheduled_start: time::OffsetDateTime,
-    #[serde(with = "time::serde::iso8601")]
-    pub scheduled_end: time::OffsetDateTime,
-    #[serde(with = "time::serde::iso8601::option")]
-    pub timer_start: Option<time::OffsetDateTime>,
-    #[serde(with = "time::serde::iso8601::option")]
-    pub timer_end: Option<time::OffsetDateTime>
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Circuit {
-    pub id: Uuid,
-    pub session_id: Uuid,
-    pub slot_id: Uuid,
-    pub key: String,
-    pub female_only: bool,
-    pub current_rotation: Option<i16>,
-    pub status: String,
-    pub intermission: bool,
-    #[serde(with = "time::serde::iso8601::option")]
-    pub timer_start: Option<time::OffsetDateTime>,
-    #[serde(with = "time::serde::iso8601::option")]
-    pub timer_end: Option<time::OffsetDateTime>
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Station {
-    pub id: Uuid,
-    pub session_id: Uuid,
-    pub title: String,
-    pub index: i16,
-    #[serde(default, with = "crate::http::pg_interval")]
-    pub duration: PgInterval,
-}
 
 #[derive(Debug, Deserialize)]
 pub struct PaginationParams {
@@ -162,12 +87,16 @@ async fn test_function(
 }
 
 impl Session {
-    #[instrument(name = "create_session", level = "TRACE", skip(user))]
+    #[instrument(name = "create_session", level = "TRACE", skip(claim))]
     pub async fn create(
         State(pool): State<sqlx::PgPool>,
-        Extension(user): Extension<AccessClaims>,
+        Extension(claim): Extension<AccessClaims>,
         Json(req): Json<CreateSessionPayload>,
     ) -> Result<impl IntoResponse, AppError> {
+        if !claim.admin {
+            return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
+        }
+
         let session_payload = req.session;
         let total_stations = req.stations.len() as i16;
 
@@ -180,7 +109,7 @@ impl Session {
             VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING *
             "#,
-            &user.id,
+            &claim.id,
             session_payload.organisation,
             session_payload.scheduled_date,
             session_payload.location,
@@ -280,7 +209,7 @@ impl Session {
 
         transaction.commit().await.with_context(|| format!("Rolled back successful. Transaction failed to commit"))?;
         
-        Ok((StatusCode::CREATED, Json(session_result)))
+        Ok((StatusCode::CREATED, Json(session_result)).into_response())
     }
 
     pub async fn get(

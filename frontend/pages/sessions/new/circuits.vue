@@ -78,12 +78,12 @@ const addCircuit = () => {
 
 const previousStep = () => {
   sessionStore.step = 2;
-  router.push('/new-session/stations');
+  router.push('/sessions/new/stations');
 };
 
 const nextStep = () => {
   sessionStore.step = 4;
-  router.push('/new-session/slots');
+  router.push('/sessions/new/slots');
 };
 
 const cancel = () => {
@@ -109,7 +109,9 @@ onBeforeMount(() => {
 
 onUnmounted(() => {
   window.onbeforeunload = null;
-  sessionStore.resetForm(); // Clean up on navigation away
+  if (!router.currentRoute.value.path.startsWith('/sessions/new')) {
+    sessionStore.resetForm();
+  }
 });
 </script>
 

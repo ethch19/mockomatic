@@ -1,5 +1,5 @@
 <template>
-  <div class="wizard-container">
+  <div class="wizard-container text">
     <Card class="session-form">
       <template #title>Set up Session - Step 1: Configuration</template>
       <template #content>
@@ -90,14 +90,6 @@
 
 <script lang="ts" setup>
 import { useSessionCreationStore } from '~/stores/sessionCreation';
-import { useRouter } from 'vue-router';
-import { ref, computed } from 'vue';
-import Card from 'primevue/card';
-import Button from 'primevue/button';
-import InputText from 'primevue/inputtext';
-import InputNumber from 'primevue/inputnumber';
-import Calendar from 'primevue/calendar';
-import Checkbox from 'primevue/checkbox';
 
 definePageMeta({
   layout: 'default',
@@ -113,8 +105,10 @@ const isValid = computed(() => {
 });
 
 const nextStep = () => {
-  sessionStore.step = 2;
-  router.push('/new-session/stations');
+  if (isValid.value) {
+    sessionStore.step = 2;
+    router.push('/sessions/new/stations');
+  }
 };
 
 const cancel = () => {
@@ -140,7 +134,9 @@ onBeforeMount(() => {
 
 onUnmounted(() => {
   window.onbeforeunload = null;
-  sessionStore.resetForm(); // Clean up on navigation away
+  if (!router.currentRoute.value.path.startsWith('/sessions/new')) {
+    sessionStore.resetForm();
+  }
 });
 </script>
 

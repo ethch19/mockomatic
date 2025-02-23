@@ -139,12 +139,12 @@ const addRun = (slotTime: string) => {
 
 const previousStep = () => {
   sessionStore.step = 3;
-  router.push('/new-session/circuits');
+  router.push('/sessions/new/circuits');
 };
 
 const nextStep = () => {
   sessionStore.step = 5;
-  router.push('/new-session/review');
+  router.push('/sessions/new/review');
 };
 
 const cancel = () => {
@@ -170,7 +170,9 @@ onBeforeMount(() => {
 
 onUnmounted(() => {
   window.onbeforeunload = null;
-  sessionStore.resetForm(); // Clean up on navigation away
+  if (!router.currentRoute.value.path.startsWith('/sessions/new')) {
+    sessionStore.resetForm();
+  }
 });
 </script>
 

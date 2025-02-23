@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT * FROM records.circuits WHERE slot_id = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "session_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "slot_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "key",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "female_only",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "current_rotation",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 6,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "intermission",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "timer_start",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "timer_end",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "071cc76bd5c32649d85a663f0d8cb7eaa546e708412a07f642472ce2ab746807"
+}

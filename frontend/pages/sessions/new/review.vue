@@ -104,14 +104,52 @@ const formatInterval = (interval) => {
 
 const previousStep = () => {
   sessionStore.step = 4;
-  router.push('/new-session/slots');
+  router.push('/sessions/new/slots');
+};
+
+const prepareFormData = () => {
+  const scheduledDate = sessionStore.form.session.scheduled_date;
+  return {
+    ...sessionStore.form,
+    session: {
+      ...sessionStore.form.session,
+      scheduled_date: formatDateForBackend(scheduledDate),
+    },
+    slots: sessionStore.form.slots.map(slot => ({
+      ...slot,
+      runs: slot.runs.map(run => ({
+        scheduled_start: formatTimeForBackend(scheduledDate, run.scheduled_start),
+        scheduled_end: formatTimeForBackend(scheduledDate, run.scheduled_end),
+      })),
+    })),
+  };
+};
+
+// Convert HH:mm to ISO 8601 with scheduled_date
+const formatTimeForBackend = (date: Date | null, time: string | null): string | null => {
+  if (!date || !time) return null;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const [hours, minutes] = time.split(':');
+  // Format as ISO 8601 with UTC (Z)
+  return `${year}-${month}-${day}T${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}:00Z`;
+};
+
+// Format Date object to YYYY-MM-DD
+const formatDateForBackend = (date: Date | null): string | null => {
+  if (!date) return null;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 const submitForm = async () => {
   try {
     const response = await apiFetch('/sessions/create', {
       method: 'POST',
-      body: sessionStore.form,
+      body: prepareFormData(),
     });
     sessionStore.resetForm();
     router.push(`/sessions/${response.id}`);
@@ -143,7 +181,9 @@ onBeforeMount(() => {
 
 onUnmounted(() => {
   window.onbeforeunload = null;
-  sessionStore.resetForm(); // Clean up on navigation away
+  if (!router.currentRoute.value.path.startsWith('/sessions/new')) {
+    sessionStore.resetForm();
+  }
 });
 </script>
 

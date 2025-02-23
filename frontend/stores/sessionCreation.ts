@@ -59,7 +59,6 @@ export const useSessionCreationStore = defineStore('sessionCreation', {
         title,
         index: nextIndex,
         duration: { months: 0, days: 0, microseconds: minutes * 60 * 1_000_000 },
-        durationMinutes: minutes,
       });
       this.setDirty();
     },
@@ -75,7 +74,6 @@ export const useSessionCreationStore = defineStore('sessionCreation', {
         days: 0,
         microseconds: minutes * 60 * 1_000_000,
       };
-      this.form.stations[index].durationMinutes = minutes;
       this.setDirty();
     },
     onRowReorder(event) {
@@ -98,7 +96,7 @@ export const useSessionCreationStore = defineStore('sessionCreation', {
         this.intermissionMinutes = 5;
         this.intermissionSeconds = 0;
         this.form.stations = [
-          { title: 'Station A', index: 0, duration: { months: 0, days: 0, microseconds: 10 * 60 * 1_000_000 }, durationMinutes: 10 },
+          { title: 'Station A', index: 0, duration: { months: 0, days: 0, microseconds: 10 * 60 * 1_000_000 }, },
         ];
         this.form.slots = [
           { slot_time: 'AM', runs: [{ scheduled_start: '09:00', scheduled_end: '10:00' }], circuits: [{ key: 'A', female_only: false }] },
@@ -115,8 +113,8 @@ export const useSessionCreationStore = defineStore('sessionCreation', {
         this.intermissionMinutes = 10;
         this.intermissionSeconds = 0;
         this.form.stations = [
-          { title: 'Station A', index: 0, duration: { months: 0, days: 0, microseconds: 15 * 60 * 1_000_000 }, durationMinutes: 15 },
-          { title: 'Station B', index: 1, duration: { months: 0, days: 0, microseconds: 15 * 60 * 1_000_000 }, durationMinutes: 15 },
+          { title: 'Station A', index: 0, duration: { months: 0, days: 0, microseconds: 15 * 60 * 1_000_000 }, },
+          { title: 'Station B', index: 1, duration: { months: 0, days: 0, microseconds: 15 * 60 * 1_000_000 }, },
         ];
         this.form.slots = [
           { slot_time: 'AM', runs: [{ scheduled_start: '09:00', scheduled_end: '10:30' }], circuits: [{ key: 'A', female_only: false }, { key: 'B', female_only: true }] },
@@ -132,7 +130,6 @@ interface StationPayload {
   title: string;
   index: number;
   duration: { months: 0, days: 0, microseconds: number };
-  durationMinutes: number;
 }
 
 interface CircuitPayload {

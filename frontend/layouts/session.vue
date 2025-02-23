@@ -2,7 +2,7 @@
   <div class="session-layout text">
     <Toolbar class="header">
       <template #start>
-        <img src="/img/long_logo.svg" alt="Logo" class="long-logo" />
+        <img src="/img/long_logo.png" alt="Logo" class="long-logo" />
       </template>
       <template #end>
         <div class="header-right">

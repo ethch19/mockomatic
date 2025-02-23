@@ -6,14 +6,22 @@ use tower_http::{
     trace::TraceLayer
 };
 use serde::Deserialize;
+use tokio::sync::broadcast;
 
 mod users;
-mod people;
-mod default;
-mod sessions;
-//mod templates;
+pub mod sessions;
+pub mod slots;
+pub mod stations;
+pub mod circuits;
+pub mod runs;
+pub mod candidates;
+pub mod examiners;
+mod allocations;
+mod templates;
 mod pg_interval;
 mod option_pg_interval;
+mod default;
+mod websocket;
 
 use crate::http::users::mid_jwt_auth;
 
@@ -28,9 +36,10 @@ pub struct SomethingMultipleID {
 }
 
 #[derive(Clone)]
-struct AppState {
-    db: sqlx::PgPool,
-    key: Key,
+pub struct AppState {
+    pub db: sqlx::PgPool,
+    pub key: Key,
+    pub tx: broadcast::Sender<String>,
 }
 
 impl FromRef<AppState> for Key {
@@ -47,18 +56,22 @@ impl FromRef<AppState> for sqlx::PgPool {
 
 pub fn router_app(db: sqlx::PgPool) -> Router {
     let secret = dotenvy::var("cookie_secret");
+    let (tx, _) = broadcast::channel(100);
     let app_state = match secret {
-        Ok(sec) => AppState { key: Key::from(sec.as_bytes()), db },
-        Err(_) => AppState { key: Key::generate(), db },
+        Ok(sec) => AppState { key: Key::from(sec.as_bytes()), db, tx },
+        Err(_) => AppState { key: Key::generate(), db, tx },
     };
     let v1_routes = Router::new()
         .nest("/users", users::router())
         .nest("/sessions", sessions::router())
-        .nest("/people", people::router())
+        .nest("/examiners", examiners::router())
+        .nest("/candidates", candidates::router())
+        .nest("/allocations", allocations::router())
+        .nest("/templates", templates::router())
         .layer(from_fn_with_state(app_state.clone(), mid_jwt_auth))
         .nest("/users", users::login_router());
     Router::new()
-        .nest("/v1", v1_routes)
+        .nest("/api/v1", v1_routes) //remove /api when deploying
         .with_state(app_state)
         .layer(
             CorsLayer::new()
@@ -67,7 +80,9 @@ pub fn router_app(db: sqlx::PgPool) -> Router {
                 .allow_private_network(true)
                 .allow_credentials(true)
                 .allow_origin(["http://localhost:3000".parse::<http::HeaderValue>().unwrap(),
-                "http://0.0.0.0:8080".parse::<http::HeaderValue>().unwrap()])
+                "http://0.0.0.0:8080".parse::<http::HeaderValue>().unwrap(),
+                "http://0.0.0.0:3000".parse::<http::HeaderValue>().unwrap(),
+                "http://localhost:8080".parse::<http::HeaderValue>().unwrap()])
         )
         .layer(
             TraceLayer::new_for_http()

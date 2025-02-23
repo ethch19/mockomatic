@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE templates.sessions\n            SET\n                name = COALESCE($2, name),\n                intermission_duration = COALESCE($3, intermission_duration),\n                static_at_end = COALESCE($4, static_at_end)\n            WHERE id = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Interval",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2d95111cc51307e82854eedb870be79d55e73dcfa9b423151d9a80021f04b040"
+}

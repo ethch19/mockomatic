@@ -1,7 +1,7 @@
 <template>
   <div class="header-container flex-column">
     <header class="flex-column">
-        <img class="long-logo" src="/img/long_logo.svg" alt="Logo">
+        <img class="long-logo" src="/img/long_logo.png" alt="Logo">
     </header>
     <slot class="slot" />
   </div>

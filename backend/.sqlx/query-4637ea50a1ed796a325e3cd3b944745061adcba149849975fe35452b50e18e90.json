@@ -1,0 +1,71 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    SELECT * FROM people.examiners WHERE session_id = $1 AND pm = $2\n                    ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "session_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "shortcode",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "female",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "am",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "pm",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "checked_in",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "4637ea50a1ed796a325e3cd3b944745061adcba149849975fe35452b50e18e90"
+}

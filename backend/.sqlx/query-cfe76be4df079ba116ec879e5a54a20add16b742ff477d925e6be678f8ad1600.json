@@ -1,0 +1,78 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE people.examiners\n            SET\n                first_name = COALESCE($3, first_name),\n                last_name = COALESCE($4, last_name),\n                shortcode = COALESCE($5, shortcode),\n                female = COALESCE($6, female),\n                am = COALESCE($7, am),\n                pm = COALESCE($8, pm),\n                checked_in = COALESCE($9, checked_in)\n            WHERE id = $1 AND session_id = $2\n            RETURNING *\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "session_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "shortcode",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "female",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "am",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "pm",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "checked_in",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Bool",
+        "Bool",
+        "Bool",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "cfe76be4df079ba116ec879e5a54a20add16b742ff477d925e6be678f8ad1600"
+}

@@ -97,12 +97,12 @@ const onRowReorder = (event) => {
 
 const previousStep = () => {
   sessionStore.step = 1;
-  router.push('/new-session');
+  router.push('/sessions/new/');
 };
 
 const nextStep = () => {
   sessionStore.step = 3;
-  router.push('/new-session/circuits');
+  router.push('/sessions/new/circuits');
 };
 
 const cancel = () => {
@@ -128,7 +128,9 @@ onBeforeMount(() => {
 
 onUnmounted(() => {
   window.onbeforeunload = null;
-  sessionStore.resetForm(); // Clean up on navigation away
+  if (!router.currentRoute.value.path.startsWith('/sessions/new')) {
+    sessionStore.resetForm();
+  }
 });
 </script>
 

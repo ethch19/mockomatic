@@ -3,7 +3,9 @@
     <header class="flex-column">
         <img class="long-logo" src="/img/long_logo.png" alt="Logo">
     </header>
-    <slot class="slot" />
+    <div class="flex-column slot-container">
+      <slot />
+    </div>
   </div>
 </template>
 
@@ -34,6 +36,11 @@ header {
   display: inline-flex;
   align-self: center;
   height: 6rem;
+}
+
+.slot-container {
+  width: 100%;
+  height: 100%;
 }
 
 .title {

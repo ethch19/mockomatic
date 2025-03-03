@@ -20,11 +20,11 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, onMounted } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { useToast } from 'primevue/usetoast';
-import { apiFetch } from '~/composables/apiFetch'
-import { useSessionStore } from '~/stores/session';
+import { ref, onMounted } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useToast } from "primevue/usetoast";
+import { apiFetch } from "~/composables/apiFetch"
+import { useSessionStore } from "~/stores/session";
 
 const fileUpload = ref(null);
 const toast = useToast();
@@ -35,39 +35,39 @@ const onUpload = async (event) => {
   const file = event.files[0];
   if (!file) {
     toast.add({
-      severity: 'error',
-      summary: 'Error',
-      detail: 'No file selected',
+      severity: "error",
+      summary: "Error",
+      detail: "No file selected",
       life: 3000
     });
     return;
   }
 
   const formData = new FormData();
-  formData.append('file', file);
+  formData.append("file", file);
 
   try {
-    const response = await apiFetch('/people/examiners/upload-xlsx?id=${sessionId}', {
-      method: 'POST',
+    const response = await apiFetch("/people/examiners/upload-xlsx?id=${sessionId}", {
+      method: "POST",
       body: formData,
       headers: {
-        'Content-Type': 'multipart/form-data'
+        "Content-Type": "multipart/form-data"
       },
     });
 
     toast.add({
-      severity: 'success',
-      summary: 'Success',
-      detail: 'File uploaded successfully',
+      severity: "success",
+      summary: "Success",
+      detail: "File uploaded successfully",
       life: 3000
     });
     
     fileUpload.value.clear();
   } catch (error) {
     toast.add({
-      severity: 'error',
-      summary: 'Upload Failed',
-      detail: error.message || 'An error occurred during upload',
+      severity: "error",
+      summary: "Upload Failed",
+      detail: error.message || "An error occurred during upload",
       life: 3000
     });
   }

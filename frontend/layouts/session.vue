@@ -13,7 +13,7 @@
             @click="navigateTo('/')"
           />
           <span class="session-info">
-            Session ID: {{ sessionStore.session?.id || 'Loading...' }}
+            Session ID: {{ sessionStore.session?.id || "Loading..." }}
           </span>
           <span class="session-info">
             Scheduled: {{ formatDate(sessionStore.session?.scheduled_date) }}
@@ -29,9 +29,9 @@
 </template>
 
 <script lang="ts" setup>
-import { useRoute, useRouter } from 'vue-router';
-import { ref, onMounted } from 'vue';
-import { useSessionStore } from '~/stores/session';
+import { useRoute, useRouter } from "vue-router";
+import { ref, onMounted } from "vue";
+import { useSessionStore } from "~/stores/session";
 
 const router = useRouter();
 const route = useRoute();
@@ -42,7 +42,7 @@ const navigateTo = (path) => {
 };
 
 const formatDate = (dateString) => {
-  return dateString ? new Date(dateString).toLocaleDateString() : 'N/A';
+  return dateString ? new Date(dateString).toLocaleDateString() : "N/A";
 };
 
 onMounted(() => {

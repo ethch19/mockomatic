@@ -25,6 +25,9 @@ pub struct Session {
     pub scheduled_date: time::Date,
     pub location: String,
     pub total_stations: i16,
+    pub feedback: bool,
+    #[serde(default, with = "crate::http::option_pg_interval")]
+    pub feedback_duration: Option<PgInterval>,
     #[serde(default, with = "crate::http::pg_interval")]
     pub intermission_duration: PgInterval,
     pub static_at_end: bool,
@@ -37,6 +40,9 @@ pub struct SessionPayload {
     pub organisation: String,
     pub scheduled_date: time::Date,
     pub location: String,
+    pub feedback: bool,
+    #[serde(default, with = "crate::http::option_pg_interval")]
+    pub feedback_duration: Option<PgInterval>,
     #[serde(default, with = "crate::http::pg_interval")]
     pub intermission_duration: PgInterval,
     pub static_at_end: bool
@@ -49,6 +55,9 @@ pub struct SessionChange {
     pub organisation: Option<String>,
     pub scheduled_date: Option<time::Date>,
     pub location: Option<String>,
+    pub feedback: Option<bool>,
+    #[serde(default, with = "crate::http::option_pg_interval")]
+    pub feedback_duration: Option<PgInterval>,
     pub total_stations: Option<i16>,
     #[serde(default, with = "crate::http::option_pg_interval")]
     pub intermission_duration: Option<PgInterval>,
@@ -100,13 +109,24 @@ impl Session {
         let session_payload = req.session;
         let total_stations = req.stations.len() as i16;
 
+        if session_payload.feedback {
+            if session_payload.feedback_duration.is_none() {
+                return Err(AppError::from(anyhow!("Feedback set to true but feedback duration missing")));
+            }
+        }
+        if session_payload.feedback_duration.is_some() {
+            if !session_payload.feedback {
+                return Err(AppError::from(anyhow!("Feedback duration is given but feedback is set to false")));
+            }
+        }
+
         let mut transaction = pool.begin().await.with_context(|| "Unable to create a transaction in database")?;
 
         let session_result = sqlx::query_as!(
             Session,
             r#"
-            INSERT INTO records.sessions (organiser_id, organisation, scheduled_date, location, total_stations, intermission_duration, static_at_end)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO records.sessions (organiser_id, organisation, scheduled_date, location, total_stations, feedback, feedback_duration, intermission_duration, static_at_end)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING *
             "#,
             &claim.id,
@@ -114,6 +134,8 @@ impl Session {
             session_payload.scheduled_date,
             session_payload.location,
             &total_stations,
+            session_payload.feedback,
+            session_payload.feedback_duration,
             session_payload.intermission_duration,
             session_payload.static_at_end)
             .fetch_one(&mut *transaction)
@@ -321,6 +343,18 @@ impl Session {
         if !claim.admin {
             return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
         }
+
+        if session.feedback == Some(true) {
+            if session.feedback_duration.is_none() {
+                return Err(AppError::from(anyhow!("Feedback set to true but feedback duration missing")));
+            }
+        }
+        if session.feedback_duration.is_some() {
+            if session.feedback == Some(false) {
+                return Err(AppError::from(anyhow!("Feedback duration is given but feedback is set to false")));
+            }
+        }
+
         let _ = sqlx::query!(
             r#"
             UPDATE records.sessions
@@ -328,8 +362,10 @@ impl Session {
                 organisation = COALESCE($3, organisation),
                 scheduled_date = COALESCE($4, scheduled_date),
                 location = COALESCE($5, location),
-                intermission_duration = COALESCE($6, intermission_duration),
-                static_at_end = COALESCE($7, static_at_end)
+                feedback = COALESCE($6, feedback),
+                feedback_duration = COALESCE($7, feedback_duration),
+                intermission_duration = COALESCE($8, intermission_duration),
+                static_at_end = COALESCE($9, static_at_end)
             WHERE id = $1 AND organiser_id = $2
             "#,
             session.id,
@@ -337,6 +373,8 @@ impl Session {
             session.organisation,
             session.scheduled_date,
             session.location,
+            session.feedback,
+            session.feedback_duration,
             session.intermission_duration,
             session.static_at_end
         )

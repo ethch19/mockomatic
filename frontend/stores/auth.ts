@@ -1,7 +1,7 @@
-import { defineStore } from 'pinia'
-import { apiFetch } from '~/composables/apiFetch'
+import { defineStore } from "pinia"
+import { apiFetch } from "~/composables/apiFetch"
 
-export const useAuthStore = defineStore('auth', {
+export const useAuthStore = defineStore("auth", {
   state: () => ({
     accessToken: null,
   }),
@@ -14,13 +14,13 @@ export const useAuthStore = defineStore('auth', {
     },
     async refreshTokens() {
       try {
-        const response = await apiFetch('/users/refresh', {
-          method: 'GET',
+        const response = await apiFetch("/users/refresh", {
+          method: "GET",
         });
         this.setAccessToken(response.access_token);
         return true;
       } catch (error) {
-        console.error('Token refresh failed:', error);
+        console.error("Token refresh failed:", error);
         this.clearAccessToken();
         return false;
       }

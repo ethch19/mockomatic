@@ -96,6 +96,11 @@ body {
     font-weight: 600;
 }
 
+.field {
+    color: var(--p-text-color);
+    font-weight: 500;
+}
+
 @media (max-width: 1200px) {
 }
 

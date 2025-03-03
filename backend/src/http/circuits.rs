@@ -12,6 +12,7 @@ pub struct Circuit {
     pub female_only: bool,
     pub current_rotation: Option<i16>,
     pub status: String,
+    pub feedback: bool,
     pub intermission: bool,
     #[serde(with = "time::serde::iso8601::option")]
     pub timer_start: Option<time::OffsetDateTime>,

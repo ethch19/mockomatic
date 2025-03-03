@@ -9,7 +9,7 @@
           <p><strong>Scheduled Date:</strong> {{ formatDate(sessionStore.form.session.scheduled_date) }}</p>
           <p><strong>Location:</strong> {{ sessionStore.form.session.location }}</p>
           <p><strong>Intermission Duration:</strong> {{ formatInterval(sessionStore.form.session.intermission_duration) }}</p>
-          <p><strong>Static at End:</strong> {{ sessionStore.form.session.static_at_end ? 'Yes' : 'No' }}</p>
+          <p><strong>Static at End:</strong> {{ sessionStore.form.session.static_at_end ? "Yes" : "No" }}</p>
 
           <h3>Stations</h3>
           <DataTable :value="sessionStore.form.stations" :scrollable="true">
@@ -22,7 +22,7 @@
             <Column field="key" header="Key" />
             <Column field="female_only" header="Female Only">
               <template #body="{ data }">
-                {{ data.female_only ? 'Yes' : 'No' }}
+                {{ data.female_only ? "Yes" : "No" }}
               </template>
             </Column>
           </DataTable>
@@ -66,17 +66,17 @@
 </template>
 
 <script lang="ts" setup>
-import { useSessionCreationStore } from '~/stores/sessionCreation';
-import { useRouter } from 'vue-router';
-import { computed } from 'vue';
-import Card from 'primevue/card';
-import Button from 'primevue/button';
-import DataTable from 'primevue/datatable';
-import Column from 'primevue/column';
-import { apiFetch } from '~/composables/apiFetch';
+import { useSessionCreationStore } from "~/stores/sessionCreation";
+import { useRouter } from "vue-router";
+import { computed } from "vue";
+import Card from "primevue/card";
+import Button from "primevue/button";
+import DataTable from "primevue/datatable";
+import Column from "primevue/column";
+import { apiFetch } from "~/composables/apiFetch";
 
 definePageMeta({
-  layout: 'default',
+  layout: "default",
 });
 
 const sessionStore = useSessionCreationStore();
@@ -92,19 +92,19 @@ const isValid = computed(() => {
 });
 
 const formatDate = (date) => {
-  return date ? new Date(date).toLocaleDateString() : 'N/A';
+  return date ? new Date(date).toLocaleDateString() : "N/A";
 };
 
 const formatInterval = (interval) => {
-  if (!interval || typeof interval !== 'object') return 'N/A';
+  if (!interval || typeof interval !== "object") return "N/A";
   const minutes = Math.floor(interval.microseconds / (1_000_000 * 60));
   const seconds = Math.floor((interval.microseconds % (1_000_000 * 60)) / 1_000_000);
-  return `${minutes}:${seconds.toString().padStart(2, '0')} min`;
+  return `${minutes}:${seconds.toString().padStart(2, "0")} min`;
 };
 
 const previousStep = () => {
   sessionStore.step = 4;
-  router.push('/sessions/new/slots');
+  router.push("/sessions/new/slots");
 };
 
 const prepareFormData = () => {
@@ -129,44 +129,44 @@ const prepareFormData = () => {
 const formatTimeForBackend = (date: Date | null, time: string | null): string | null => {
   if (!date || !time) return null;
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const [hours, minutes] = time.split(':');
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const [hours, minutes] = time.split(":");
   // Format as ISO 8601 with UTC (Z)
-  return `${year}-${month}-${day}T${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}:00Z`;
+  return `${year}-${month}-${day}T${hours.padStart(2, "0")}:${minutes.padStart(2, "0")}:00Z`;
 };
 
 // Format Date object to YYYY-MM-DD
 const formatDateForBackend = (date: Date | null): string | null => {
   if (!date) return null;
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
-  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, "0"); // Months are 0-indexed
+  const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 };
 
 const submitForm = async () => {
   try {
-    const response = await apiFetch('/sessions/create', {
-      method: 'POST',
+    const response = await apiFetch("/sessions/create", {
+      method: "POST",
       body: prepareFormData(),
     });
     sessionStore.resetForm();
     router.push(`/sessions/${response.id}`);
   } catch (error) {
-    console.error('Submit error:', error);
+    console.error("Submit error:", error);
   }
 };
 
 const cancel = () => {
   if (sessionStore.isDirty) {
-    if (confirm('You have unsaved changes. Are you sure you want to cancel and lose progress?')) {
+    if (confirm("You have unsaved changes. Are you sure you want to cancel and lose progress?")) {
       sessionStore.resetForm();
-      router.push('/');
+      router.push("/");
     }
   } else {
     sessionStore.resetForm();
-    router.push('/');
+    router.push("/");
   }
 };
 
@@ -174,14 +174,14 @@ const cancel = () => {
 onBeforeMount(() => {
   window.onbeforeunload = () => {
     if (sessionStore.isDirty) {
-      return 'You have unsaved changes. Are you sure you want to leave?';
+      return "You have unsaved changes. Are you sure you want to leave?";
     }
   };
 });
 
 onUnmounted(() => {
   window.onbeforeunload = null;
-  if (!router.currentRoute.value.path.startsWith('/sessions/new')) {
+  if (!router.currentRoute.value.path.startsWith("/sessions/new")) {
     sessionStore.resetForm();
   }
 });

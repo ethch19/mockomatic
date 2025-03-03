@@ -110,16 +110,16 @@
 </template>
 
 <script lang="ts" setup>
-import { useSessionCreationStore } from '~/stores/sessionCreation';
-import { useRouter } from 'vue-router';
-import Card from 'primevue/card';
-import Button from 'primevue/button';
-import DataTable from 'primevue/datatable';
-import Column from 'primevue/column';
-import InputMask from 'primevue/inputmask';
+import { useSessionCreationStore } from "~/stores/sessionCreation";
+import { useRouter } from "vue-router";
+import Card from "primevue/card";
+import Button from "primevue/button";
+import DataTable from "primevue/datatable";
+import Column from "primevue/column";
+import InputMask from "primevue/inputmask";
 
 definePageMeta({
-  layout: 'default',
+  layout: "default",
 });
 
 const sessionStore = useSessionCreationStore();
@@ -132,30 +132,30 @@ const hasRuns = computed(() => {
 const addRun = (slotTime: string) => {
   const slot = sessionStore.form.slots.find(s => s.slot_time === slotTime);
   if (slot) {
-    slot.runs.push({ scheduled_start: '09:00', scheduled_end: '10:00' });
+    slot.runs.push({ scheduled_start: "09:00", scheduled_end: "10:00" });
     sessionStore.setDirty();
   }
 };
 
 const previousStep = () => {
   sessionStore.step = 3;
-  router.push('/sessions/new/circuits');
+  router.push("/sessions/new/circuits");
 };
 
 const nextStep = () => {
   sessionStore.step = 5;
-  router.push('/sessions/new/review');
+  router.push("/sessions/new/review");
 };
 
 const cancel = () => {
   if (sessionStore.isDirty) {
-    if (confirm('You have unsaved changes. Are you sure you want to cancel and lose progress?')) {
+    if (confirm("You have unsaved changes. Are you sure you want to cancel and lose progress?")) {
       sessionStore.resetForm();
-      router.push('/');
+      router.push("/");
     }
   } else {
     sessionStore.resetForm();
-    router.push('/');
+    router.push("/");
   }
 };
 
@@ -163,14 +163,14 @@ const cancel = () => {
 onBeforeMount(() => {
   window.onbeforeunload = () => {
     if (sessionStore.isDirty) {
-      return 'You have unsaved changes. Are you sure you want to leave?';
+      return "You have unsaved changes. Are you sure you want to leave?";
     }
   };
 });
 
 onUnmounted(() => {
   window.onbeforeunload = null;
-  if (!router.currentRoute.value.path.startsWith('/sessions/new')) {
+  if (!router.currentRoute.value.path.startsWith("/sessions/new")) {
     sessionStore.resetForm();
   }
 });

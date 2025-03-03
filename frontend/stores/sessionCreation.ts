@@ -1,19 +1,19 @@
-import { defineStore } from 'pinia';
+import { defineStore } from "pinia";
 
-export const useSessionCreationStore = defineStore('sessionCreation', {
+export const useSessionCreationStore = defineStore("sessionCreation", {
   state: () => ({
     form: {
       session: {
-        organisation: '',
+        organisation: "",
         scheduled_date: null,
-        location: '',
+        location: "",
         intermission_duration: { months: 0, days: 0, microseconds: 0 },
         static_at_end: false,
       },
       stations: [] as StationPayload[],
       slots: [
-        { slot_time: 'AM', runs: [], circuits: [] as CircuitPayload[] },
-        { slot_time: 'PM', runs: [], circuits: [] as CircuitPayload[] },
+        { slot_time: "AM", runs: [], circuits: [] as CircuitPayload[] },
+        { slot_time: "PM", runs: [], circuits: [] as CircuitPayload[] },
       ],
     },
     intermissionMinutes: 0,
@@ -28,16 +28,16 @@ export const useSessionCreationStore = defineStore('sessionCreation', {
     resetForm() {
       this.form = {
         session: {
-          organisation: '',
+          organisation: "",
           scheduled_date: null,
-          location: '',
+          location: "",
           intermission_duration: { months: 0, days: 0, microseconds: 0 },
           static_at_end: false,
         },
         stations: [],
         slots: [
-          { slot_time: 'AM', runs: [], circuits: [] },
-          { slot_time: 'PM', runs: [], circuits: [] },
+          { slot_time: "AM", runs: [], circuits: [] },
+          { slot_time: "PM", runs: [], circuits: [] },
         ],
       };
       this.intermissionMinutes = 0;
@@ -53,7 +53,7 @@ export const useSessionCreationStore = defineStore('sessionCreation', {
         microseconds: totalMicroseconds,
       };
     },
-    addStation(title = '', minutes = 1) {
+    addStation(title = "", minutes = 1) {
       const nextIndex = this.form.stations.length;
       this.form.stations.push({
         title,
@@ -85,40 +85,40 @@ export const useSessionCreationStore = defineStore('sessionCreation', {
       this.setDirty();
     },
     applyTemplate(type) {
-      if (type === 'basic') {
+      if (type === "basic") {
         this.form.session = {
-          organisation: 'Default Org',
+          organisation: "Default Org",
           scheduled_date: new Date(),
-          location: 'Default Location',
+          location: "Default Location",
           intermission_duration: { months: 0, days: 0, microseconds: 5 * 60 * 1_000_000 },
           static_at_end: false,
         };
         this.intermissionMinutes = 5;
         this.intermissionSeconds = 0;
         this.form.stations = [
-          { title: 'Station A', index: 0, duration: { months: 0, days: 0, microseconds: 10 * 60 * 1_000_000 }, },
+          { title: "Station A", index: 0, duration: { months: 0, days: 0, microseconds: 10 * 60 * 1_000_000 }, },
         ];
         this.form.slots = [
-          { slot_time: 'AM', runs: [{ scheduled_start: '09:00', scheduled_end: '10:00' }], circuits: [{ key: 'A', female_only: false }] },
-          { slot_time: 'PM', runs: [{ scheduled_start: '14:00', scheduled_end: '15:00' }], circuits: [{ key: 'A', female_only: false }] },
+          { slot_time: "AM", runs: [{ scheduled_start: "09:00", scheduled_end: "10:00" }], circuits: [{ key: "A", female_only: false }] },
+          { slot_time: "PM", runs: [{ scheduled_start: "14:00", scheduled_end: "15:00" }], circuits: [{ key: "A", female_only: false }] },
         ];
-      } else if (type === 'advanced') {
+      } else if (type === "advanced") {
         this.form.session = {
-          organisation: 'Advanced Org',
+          organisation: "Advanced Org",
           scheduled_date: new Date(),
-          location: 'Advanced Location',
+          location: "Advanced Location",
           intermission_duration: { months: 0, days: 0, microseconds: 10 * 60 * 1_000_000 },
           static_at_end: true,
         };
         this.intermissionMinutes = 10;
         this.intermissionSeconds = 0;
         this.form.stations = [
-          { title: 'Station A', index: 0, duration: { months: 0, days: 0, microseconds: 15 * 60 * 1_000_000 }, },
-          { title: 'Station B', index: 1, duration: { months: 0, days: 0, microseconds: 15 * 60 * 1_000_000 }, },
+          { title: "Station A", index: 0, duration: { months: 0, days: 0, microseconds: 15 * 60 * 1_000_000 }, },
+          { title: "Station B", index: 1, duration: { months: 0, days: 0, microseconds: 15 * 60 * 1_000_000 }, },
         ];
         this.form.slots = [
-          { slot_time: 'AM', runs: [{ scheduled_start: '09:00', scheduled_end: '10:30' }], circuits: [{ key: 'A', female_only: false }, { key: 'B', female_only: true }] },
-          { slot_time: 'PM', runs: [{ scheduled_start: '14:00', scheduled_end: '15:30' }], circuits: [{ key: 'A', female_only: false }, { key: 'B', female_only: true }] },
+          { slot_time: "AM", runs: [{ scheduled_start: "09:00", scheduled_end: "10:30" }], circuits: [{ key: "A", female_only: false }, { key: "B", female_only: true }] },
+          { slot_time: "PM", runs: [{ scheduled_start: "14:00", scheduled_end: "15:30" }], circuits: [{ key: "A", female_only: false }, { key: "B", female_only: true }] },
         ];
       }
       this.setDirty();

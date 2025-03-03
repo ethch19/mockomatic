@@ -3,7 +3,7 @@
     <h1>Session Details</h1>
     <Card>
       <template #title>
-        {{ sessionStore.session?.name || 'Loading...' }}
+        {{ sessionStore.session?.name || "Loading..." }}
       </template>
       <template #content>
         <div v-if="sessionStore.loading" class="loading">
@@ -40,11 +40,11 @@
 </template>
 
 <script lang="ts" setup>
-import { useRoute, useRouter } from 'vue-router';
-import { useSessionStore } from '~/stores/session';
+import { useRoute, useRouter } from "vue-router";
+import { useSessionStore } from "~/stores/session";
 
 definePageMeta({
-  layout: 'session',
+  layout: "session",
 });
 
 // Router and route
@@ -58,7 +58,7 @@ const navigateTo = (path) => {
 };
 
 const formatDate = (dateString) => {
-  return dateString ? new Date(dateString).toLocaleString() : 'N/A';
+  return dateString ? new Date(dateString).toLocaleString() : "N/A";
 };
 </script>
 

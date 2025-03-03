@@ -1,11 +1,13 @@
 use anyhow::{Context, anyhow};
 use axum::{extract::{Json, State}, http::StatusCode, response::IntoResponse, routing::post, Extension};
 use serde::{Deserialize, Serialize};
+use tower_sessions::session;
 use uuid::Uuid;
 use super::{users::AccessClaims, AppState, SomethingID, SomethingMultipleID};
 use crate::error::AppError;
 use sqlx::postgres::types::PgInterval;
 use tracing::instrument;
+use validator::Validate;
 
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
@@ -16,9 +18,11 @@ pub fn router() -> axum::Router<AppState> {
         .route("/delete", post(TemplateSession::delete))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateTemplatePayload {
+    #[validate(nested)]
     pub template_session: TemplateSessionPayload,
+    #[validate(nested)]
     pub template_stations: Vec<TemplateStationPayload>
 }
 
@@ -27,6 +31,9 @@ struct TemplateSessionWithStations {
     id: Uuid,
     name: String,
     total_stations: i16,
+    feedback: bool, // validate that if feedback_duration given or feedback = true, then make sure either is valid
+    #[serde(default, with = "crate::http::option_pg_interval")]
+    feedback_duration: Option<PgInterval>,
     #[serde(default, with = "crate::http::pg_interval")]
     intermission_duration: PgInterval,
     static_at_end: bool,
@@ -38,23 +45,34 @@ pub struct TemplateSession {
     pub id: Uuid,
     pub name: String,
     pub total_stations: i16,
+    pub feedback: bool, // validate that if feedback_duration given or feedback = true, then make sure either is valid
+    #[serde(default, with = "crate::http::option_pg_interval")]
+    pub feedback_duration: Option<PgInterval>,
     #[serde(default, with = "crate::http::pg_interval")]
     pub intermission_duration: PgInterval,
     pub static_at_end: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct TemplateSessionPayload {
+    #[validate(length(min = 1))]
     pub name: String,
+    pub feedback: bool, // validate that if feedback_duration given or feedback = true, then make sure either is valid
+    #[serde(default, with = "crate::http::option_pg_interval")]
+    pub feedback_duration: Option<PgInterval>,
     #[serde(default, with = "crate::http::pg_interval")]
     pub intermission_duration: PgInterval,
     pub static_at_end: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct TemplateSessionChange {
     pub id: Uuid,
+    #[validate(length(min = 1))]
     pub name: Option<String>,
+    pub feedback: Option<bool>, // validate that if feedback_duration given or feedback = true, then make sure either is valid
+    #[serde(default, with = "crate::http::option_pg_interval")]
+    pub feedback_duration: Option<PgInterval>,
     #[serde(default, with = "crate::http::option_pg_interval")]
     pub intermission_duration: Option<PgInterval>,
     pub static_at_end: Option<bool>,
@@ -70,10 +88,11 @@ pub struct TemplateStation {
     pub duration: PgInterval,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct TemplateStationChange {
     pub id: Uuid,
     pub template_id: Uuid,
+    #[validate(length(min = 1))]
     pub title: Option<String>,
     pub index: Option<i16>,
     #[serde(default, with = "crate::http::option_pg_interval")]
@@ -81,8 +100,9 @@ pub struct TemplateStationChange {
 }
 
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct TemplateStationPayload {
+    #[validate(length(min = 1))]
     pub title: String,
     pub index: i16,
     #[serde(default, with = "crate::http::pg_interval")]
@@ -96,24 +116,38 @@ impl TemplateSession {
         State(pool): State<sqlx::PgPool>,
         Extension(claim): Extension<AccessClaims>,
         Json(req): Json<CreateTemplatePayload>,
-    ) -> Result<impl IntoResponse, AppError> {
+    ) -> Result<impl IntoResponse, AppError> { // validate that if static_at_end is on, there should only be 1 station that has different times than others
         if !claim.admin {
             return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
         }
+        req.validate().with_context(|| "Incorrect formatting")?;
         let session_payload = req.template_session;
         let total_stations = req.template_stations.len() as i16;
+
+        if session_payload.feedback {
+            if session_payload.feedback_duration.is_none() {
+                return Err(AppError::from(anyhow!("Feedback set to true but feedback duration missing")));
+            }
+        }
+        if session_payload.feedback_duration.is_some() {
+            if !session_payload.feedback {
+                return Err(AppError::from(anyhow!("Feedback duration is given but feedback is set to false")));
+            }
+        }
 
         let mut transaction = pool.begin().await.with_context(|| "Unable to create a transaction in database")?;
 
         let session_result = sqlx::query_as!(
             TemplateSession,
             r#"
-            INSERT INTO templates.sessions (name, total_stations, intermission_duration, static_at_end)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO templates.sessions (name, total_stations, feedback, feedback_duration, intermission_duration, static_at_end)
+            VALUES ($1, $2, $3, $4, $5, $6)
             RETURNING *
             "#,
             session_payload.name,
             &total_stations,
+            session_payload.feedback,
+            session_payload.feedback_duration,
             session_payload.intermission_duration,
             session_payload.static_at_end)
             .fetch_one(&mut *transaction)
@@ -181,6 +215,8 @@ impl TemplateSession {
             id: result.id,
             name: result.name,
             total_stations: result.total_stations,
+            feedback: result.feedback,
+            feedback_duration: result.feedback_duration,
             intermission_duration: result.intermission_duration,
             static_at_end: result.static_at_end,
             stations,
@@ -229,6 +265,8 @@ impl TemplateSession {
                 id: session.id,
                 name: session.name,
                 total_stations: session.total_stations,
+                feedback: session.feedback,
+                feedback_duration: session.feedback_duration,
                 intermission_duration: session.intermission_duration,
                 static_at_end: session.static_at_end,
                 stations: session_stations,
@@ -247,17 +285,34 @@ impl TemplateSession {
         if !claim.admin {
             return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
         }
+        session.validate().with_context(|| "Incorrect formatting")?;
+
+        if session.feedback == Some(true) {
+            if session.feedback_duration.is_none() {
+                return Err(AppError::from(anyhow!("Feedback set to true but feedback duration missing")));
+            }
+        }
+        if session.feedback_duration.is_some() {
+            if session.feedback == Some(false) {
+                return Err(AppError::from(anyhow!("Feedback duration is given but feedback is set to false")));
+            }
+        }
+
         let _ = sqlx::query!(
             r#"
             UPDATE templates.sessions
             SET
                 name = COALESCE($2, name),
-                intermission_duration = COALESCE($3, intermission_duration),
-                static_at_end = COALESCE($4, static_at_end)
+                feedback = COALESCE($3, feedback),
+                feedback_duration = COALESCE($4, feedback_duration),
+                intermission_duration = COALESCE($5, intermission_duration),
+                static_at_end = COALESCE($6, static_at_end)
             WHERE id = $1
             "#,
             session.id,
             session.name,
+            session.feedback,
+            session.feedback_duration,
             session.intermission_duration,
             session.static_at_end
         )

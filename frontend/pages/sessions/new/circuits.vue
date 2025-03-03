@@ -55,16 +55,16 @@
 </template>
 
 <script lang="ts" setup>
-import { useSessionCreationStore } from '~/stores/sessionCreation';
-import { useRouter } from 'vue-router';
-import Card from 'primevue/card';
-import Button from 'primevue/button';
-import Checkbox from 'primevue/checkbox';
-import DataTable from 'primevue/datatable';
-import Column from 'primevue/column';
+import { useSessionCreationStore } from "~/stores/sessionCreation";
+import { useRouter } from "vue-router";
+import Card from "primevue/card";
+import Button from "primevue/button";
+import Checkbox from "primevue/checkbox";
+import DataTable from "primevue/datatable";
+import Column from "primevue/column";
 
 definePageMeta({
-  layout: 'default',
+  layout: "default",
 });
 
 const sessionStore = useSessionCreationStore();
@@ -78,23 +78,23 @@ const addCircuit = () => {
 
 const previousStep = () => {
   sessionStore.step = 2;
-  router.push('/sessions/new/stations');
+  router.push("/sessions/new/stations");
 };
 
 const nextStep = () => {
   sessionStore.step = 4;
-  router.push('/sessions/new/slots');
+  router.push("/sessions/new/slots");
 };
 
 const cancel = () => {
   if (sessionStore.isDirty) {
-    if (confirm('You have unsaved changes. Are you sure you want to cancel and lose progress?')) {
+    if (confirm("You have unsaved changes. Are you sure you want to cancel and lose progress?")) {
       sessionStore.resetForm();
-      router.push('/');
+      router.push("/");
     }
   } else {
     sessionStore.resetForm();
-    router.push('/');
+    router.push("/");
   }
 };
 
@@ -102,14 +102,14 @@ const cancel = () => {
 onBeforeMount(() => {
   window.onbeforeunload = () => {
     if (sessionStore.isDirty) {
-      return 'You have unsaved changes. Are you sure you want to leave?';
+      return "You have unsaved changes. Are you sure you want to leave?";
     }
   };
 });
 
 onUnmounted(() => {
   window.onbeforeunload = null;
-  if (!router.currentRoute.value.path.startsWith('/sessions/new')) {
+  if (!router.currentRoute.value.path.startsWith("/sessions/new")) {
     sessionStore.resetForm();
   }
 });

@@ -9,7 +9,7 @@
     </div>
     <div>
       <FloatLabel variant="on">
-        <Password :class="{ 'p-invalid': error }" :style="{ width: '100%' }" :inputStyle="{ width: '100%', 'padding-': '1rem' }" id="password" v-model="password" :feedback="false"/>
+        <Password :class="{ 'p-invalid': error }" :style="{ width: '100%' }" :inputStyle="{ width: '100%', 'padding': '1rem' }" id="password" v-model="password" :feedback="false"/>
         <label for="password">Password</label>
       </FloatLabel>
     </div>
@@ -23,13 +23,13 @@ definePageMeta({
   layout: "default",
 })
 
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '~/stores/auth'
-import { apiFetch } from '~/composables/apiFetch'
+import { ref } from "vue"
+import { useRouter } from "vue-router"
+import { useAuthStore } from "~/stores/auth"
+import { apiFetch } from "~/composables/apiFetch"
 
-const username = ref('')
-const password = ref('')
+const username = ref("")
+const password = ref("")
 const loading = ref(false)
 const error = ref(null)
 const router = useRouter()
@@ -39,7 +39,7 @@ async function handleLogin() {
   loading.value = true
   error.value = null
   try {
-    const data = await apiFetch('/users/login', {
+    const data = await apiFetch("/users/login", {
       method: "POST",
       body: JSON.stringify({ username: username.value, password: password.value }),
       headers: {
@@ -48,19 +48,19 @@ async function handleLogin() {
     })
     if (data.access_token && data.token_type === "Bearer ") {
       authStore.setAccessToken(data.access_token)
-      router.push('/')
+      router.push("/")
     } else {
-      error.value = 'Login failed: Invalid response from server'
-      console.error('Unexpected response:', data)
+      error.value = "Login failed: Invalid response from server"
+      console.error("Unexpected response:", data)
     }
   } catch (err) {
-    console.error('Login error:', err)
-    console.log('Error response:', err.response)
+    console.error("Login error:", err)
+    console.log("Error response:", err.response)
     if (err.response) {
-      const errorMessage = typeof err.response._data === 'string' ? err.response._data : err.response._data?.detail || 'Unknown server error'
+      const errorMessage = typeof err.response._data === "string" ? err.response._data : err.response._data?.detail || "Unknown server error"
       error.value = `Login failed: ${errorMessage}`
     } else {
-      error.value = `Login failed: ${err.message || 'Network error'}`
+      error.value = `Login failed: ${err.message || "Network error"}`
     }
   } finally {
     loading.value = false

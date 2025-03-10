@@ -4,16 +4,9 @@ use serde::{Deserialize, Serialize};
 use sqlx::Transaction;
 use uuid::Uuid;
 use super::{
-    examiners::Examiner,
-    candidates::{Candidate, CandidatesBySlot, create_fill},
-    stations::Station,
-    slots::{Slot, SlotTime},
-    circuits::Circuit,
-    users::AccessClaims,
-    AppState, SomethingID};
+    candidates::{create_fill, Candidate}, circuits::Circuit, examiners::Examiner, runs::{Run, RunTime}, slots::Slot, stations::Station, users::AccessClaims, AppState, SomethingID};
 use crate::{
-    error::AppError,
-    allocation::{allocate_stations, StationAllocation},
+    allocation_algo::{allocate_by_slot, allocate_by_time, SlotAllocation, TimeAllocation}, error::AppError
 };
 use tracing::trace;
 
@@ -60,6 +53,11 @@ pub struct AllocationHistory {
     pub modified_at: time::OffsetDateTime
 }
 
+#[derive(Debug, Serialize)]
+pub struct Availability {
+    pub am: bool,
+    pub pm: bool,
+}
 
 async fn gen_new(
     State(pool): State<sqlx::PgPool>,
@@ -69,127 +67,98 @@ async fn gen_new(
     if !claim.admin {
         return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
     }
-    
-    let am_slot = Slot::get_by_session(&pool, &req.id, SlotTime::AM).await?;
-    let pm_slot = Slot::get_by_session(&pool, &req.id, SlotTime::PM).await?;
 
-    let am_circuit = Circuit::get_by_slot(&pool, &am_slot.id).await?;
-    let pm_circuit = Circuit::get_by_slot(&pool, &pm_slot.id).await?;
-
+    let slots = Slot::get_all_by_session(&pool, &req.id).await?;
     let stations = Station::get_by_session(&pool, &req.id).await?;
+    let mut candidates_all = Candidate::get_ava_all(&pool, &req.id, Availability { am: true, pm: true }).await?;
 
-    let candidates_result = sqlx::query_as!(
-        Candidate,
-        r#"
-        SELECT * FROM people.candidates WHERE session_id = $1 ORDER BY slot
-        "#,
-        &req.id
-    )
-    .fetch_all(&pool)
-    .await
-    .with_context(|| format!("Cannot get all candidates with session_id: {}", req.id))?;
-
-    let mut candidates_no_slot: Vec<Candidate> = Vec::new();
-    let mut candidates_by_slot: Vec<CandidatesBySlot> = Vec::new();
-    let mut current_slot: Option<String> = None;
-    for candidate in candidates_result {
-        if current_slot != candidate.slot {
-            if let Some(can_slot) = candidate.slot.clone() {
-                candidates_by_slot.push(CandidatesBySlot {
-                    slot: can_slot,
-                    candidates: Vec::new(),
-                });
-            } else {
-                candidates_no_slot.push(candidate.clone());
-                continue;
-            }
-            current_slot = candidate.slot.clone();
-        }
-        candidates_by_slot.last_mut().unwrap().candidates.push(candidate);
-    }
-
-    let mut am_candidates = candidates_by_slot
-        .iter_mut()
-        .find(|s| s.slot == "AM")
-        .map(|s| std::mem::take(&mut s.candidates))
-        .unwrap_or_default();
-    let mut pm_candidates = candidates_by_slot
-        .iter_mut()
-        .find(|s| s.slot == "PM")
-        .map(|s| std::mem::take(&mut s.candidates))
-        .unwrap_or_default();
-
-    let no_slot_count = candidates_no_slot.len();
-    let am_count = am_candidates.len();
-    let pm_count = pm_candidates.len();
-    let total_count = no_slot_count + am_count + pm_count;
-    
-    trace!("Candidates: no slot = {}, AM = {}, PM = {}. Total = {}", no_slot_count, am_count, pm_count, total_count);
-
-    if total_count % 2 != 0 {
-        candidates_no_slot.push(create_fill(req.id, &pool).await?);
-    }
-
-    if no_slot_count % 2 != 0 {
-        candidates_no_slot.push(create_fill(req.id, &pool).await?);
-    }
-    if am_count % 2 != 0 {
-        if !candidates_no_slot.is_empty() {
-            let mut candidate = candidates_no_slot.remove(0);
-            candidate.slot = Some("AM".to_string());
-            am_candidates.push(candidate);
-        } else {
-            am_candidates.push(create_fill(req.id, &pool).await?);
-        }
-    }
-    if pm_count % 2 != 0 {
-        if !candidates_no_slot.is_empty() {
-            let mut candidate = candidates_no_slot.remove(0);
-            candidate.slot = Some("PM".to_string());
-            pm_candidates.push(candidate);
-        } else {
-            pm_candidates.push(create_fill(req.id, &pool).await?);
-        }
-    }
-    
-    let am_count = am_candidates.len();
-    let pm_count = pm_candidates.len();
-
-    trace!("After 2 checks; no slot = {}, AM = {}, PM = {}. Total = {}", no_slot_count, am_count, pm_count, total_count);
-
-    if am_count % 2 == 0 && pm_count % 2 == 0 && !candidates_no_slot.is_empty() {
-        let target_count = (am_count + pm_count + candidates_no_slot.len()) / 2;
-        while am_count < target_count && !candidates_no_slot.is_empty() {
-            let mut candidate = candidates_no_slot.remove(0);
-            candidate.slot = Some("AM".to_string());
-            am_candidates.push(candidate);
-        }
-        while pm_count < target_count && !candidates_no_slot.is_empty() {
-            let mut candidate = candidates_no_slot.remove(0);
-            candidate.slot = Some("PM".to_string());
-            pm_candidates.push(candidate);
-        }
-    }
-
-    let am_count = am_candidates.len();
-    let pm_count = pm_candidates.len();
-    let no_slot_count = candidates_no_slot.len();
-    let total_count = no_slot_count + am_count + pm_count;
-    trace!("FINAL; no slot = {}, AM = {}, PM = {}. Total = {}", no_slot_count, am_count, pm_count, total_count);
-
-    let am_examiners = Examiner::get_all_by_session_slot(&pool, req.id, SlotTime::AM).await?;
-    let pm_examiners = Examiner::get_all_by_session_slot(&pool, req.id, SlotTime::PM).await?;
-    
-    let am_allocations = allocate_stations(&am_circuit, &stations, &am_candidates, &am_examiners)?;
-    let pm_allocations = allocate_stations(&pm_circuit, &stations, &pm_candidates, &pm_examiners)?;
-
-    let mut transaction = pool.begin().await.with_context(|| "Unable to create a transaction in database")?;
     let batch_id = Uuid::new_v4();
-    
-    Allocation::add_by_slot(&mut transaction, am_allocations, &batch_id, &am_slot.id, &claim.id).await?;
-    Allocation::add_by_slot(&mut transaction, pm_allocations, &batch_id, &pm_slot.id, &claim.id).await?;
+    let mut transaction = pool.begin().await.with_context(|| "Unable to create a transaction in database")?;
 
-    transaction.commit().await.map_err(|e| AppError::from(anyhow!("Failed to commit transaction: {}", e)))?;
+    match slots.len() {
+        1 => { // as only 1 slot, check if any runs are in AM or PM, as all candidates need to be there for its full duration
+            let cur_slot = &slots[0];
+            let circuits = Circuit::get_by_slot(&pool, &cur_slot.id).await?;
+            let am_runs = Run::get_by_time(&pool, &cur_slot.id, RunTime::AM).await?;
+            let pm_runs = Run::get_by_time(&pool, &cur_slot.id, RunTime::PM).await?;
+
+            let am_runs_count = am_runs.len();
+            let pm_runs_count = pm_runs.len();
+
+            if candidates_all.len() % 2 != 0 {
+                candidates_all.push(create_fill(req.id.clone(), &pool, None).await?);
+            }
+
+            // EXAMINER ALLOCATIONS
+            let mut examiners = Vec::new();
+            if am_runs_count > 0 && pm_runs_count == 0 { // Slot is AM runs only
+                examiners = Examiner::get_all_by_time(&pool, &req.id, RunTime::AM).await?;
+            } else if am_runs_count == 0 && pm_runs_count > 0 { // Slot is PM runs only
+                examiners = Examiner::get_all_by_time(&pool, &req.id, RunTime::PM).await?;
+            } else if am_runs_count > 0 && pm_runs_count > 0 { // Slot has runs in both AM and PM
+                let am_examiners = Examiner::get_all_by_time(&pool, &req.id, RunTime::AM).await?;
+                let pm_examiners = Examiner::get_all_by_time(&pool, &req.id, RunTime::PM).await?;
+                let am_allocations = allocate_by_time(&circuits, &stations, &am_examiners)?;
+                let pm_allocations = allocate_by_time(&circuits, &stations, &pm_examiners)?;
+
+                Allocation::add_by_time(&mut transaction, am_allocations, &batch_id, &cur_slot.id, &claim.id).await?;
+                Allocation::add_by_time(&mut transaction, pm_allocations, &batch_id, &cur_slot.id, &claim.id).await?;
+                transaction.commit().await.map_err(|e| AppError::from(anyhow!("Failed to commit transaction: {}", e)))?;
+                return Ok(StatusCode::OK.into_response());
+            } else {
+                return Err(AppError::from(anyhow!("Slot has no runs")));
+            }
+            let allocations = allocate_by_time(&circuits, &stations, &examiners)?;
+            
+            Allocation::add_by_time(&mut transaction, allocations, &batch_id, &cur_slot.id, &claim.id).await?;
+            transaction.commit().await.map_err(|e| AppError::from(anyhow!("Failed to commit transaction: {}", e)))?;        
+        },
+        2 => {
+            let candidates_am = Candidate::get_ava_all(&pool, &req.id, Availability { am: true, pm: false }).await?;
+            let candidates_pm = Candidate::get_ava_all(&pool, &req.id, Availability { am: false, pm: true }).await?;
+            
+            let can_all_count = candidates_all.len();
+            let can_am_count = candidates_am.len();
+            let can_pm_count = candidates_pm.len();
+            let total_candidates = can_all_count + can_am_count + can_pm_count;
+            
+            trace!("Candidates: Both = {}, AM = {}, PM = {}. TOTAL: {}", can_all_count, can_am_count, can_pm_count, total_candidates);
+        
+            // make even balance across slots
+            if total_candidates % 2 != 0 { // either 1 odd or ALL odd
+                if can_all_count % 2 != 0 {
+                    if can_am_count % 2 != 0 {
+                        // all odds
+                    } else {
+                        // only all_count is odd
+                    }
+                } else {
+                    if can_pm_count % 2 != 0 {
+                        // only pm_count is odd
+                    } else {
+                        // only am_count is odd
+                    }
+                }
+            } else { // either 2 odds or ALL even
+                if can_all_count % 2 != 0 {
+                    if can_am_count % 2 != 0 {
+                        // all_count, am_count = odd
+                    } else {
+                        // all_count, pm_count = odd
+                    }
+                } else {
+                    if can_pm_count % 2 != 0 {
+                        // am_count, pm_count = odd
+                    } else {
+                        // all even
+                    }
+                }
+            }
+        },
+        _ => {
+            // find slot where ALL runs are in AM, same for PM
+        },
+    };
 
     Ok(StatusCode::OK.into_response())
 }
@@ -197,11 +166,11 @@ async fn gen_new(
 impl Allocation {
     pub async fn add_by_slot(
         tx: &mut Transaction<'static, sqlx::Postgres>,
-        allocations: Vec<StationAllocation>,
+        allocations: Vec<SlotAllocation>,
         batch_id: &Uuid,
         slot_id: &Uuid,
         user_id: &Uuid,
-    ) -> Result<(), AppError> { // for 1 SLOT at a time
+    ) -> Result<(), AppError> { // for candidates ONLY
         sqlx::query!(
             r#"
             DELETE FROM records.allocations
@@ -217,15 +186,14 @@ impl Allocation {
             sqlx::query!(
                 r#"
                 INSERT INTO records.allocations (
-                    slot_id, circuit_id, station_id, candidate_1, candidate_2, examiner
-                ) VALUES ($1, $2, $3, $4, $5, $6)
+                    slot_id, circuit_id, station_id, candidate_1, candidate_2
+                ) VALUES ($1, $2, $3, $4, $5)
                 "#,
                 slot_id,
                 allocation.circuit_id,
                 allocation.station_id,
                 allocation.candidate_1,
                 allocation.candidate_2,
-                allocation.examiner
             )
             .execute(&mut **tx)
             .await
@@ -234,8 +202,8 @@ impl Allocation {
             sqlx::query!(
                 r#"
                 INSERT INTO records.allocations_history (
-                    batch_id, slot_id, circuit_id, station_id, candidate_1, candidate_2, examiner, modified_by, auto_gen
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                    batch_id, slot_id, circuit_id, station_id, candidate_1, candidate_2, modified_by, auto_gen
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 "#,
                 batch_id,
                 slot_id,
@@ -243,7 +211,6 @@ impl Allocation {
                 allocation.station_id,
                 allocation.candidate_1,
                 allocation.candidate_2,
-                allocation.examiner,
                 user_id,
                 true
             )
@@ -251,6 +218,16 @@ impl Allocation {
             .await
             .with_context(|| "Failed to insert allocation history")?;
         }
+        Ok(())
+    }
+
+    pub async fn add_by_time(
+        tx: &mut Transaction<'static, sqlx::Postgres>,
+        allocations: Vec<TimeAllocation>,
+        batch_id: &Uuid,
+        slot_id: &Uuid,
+        user_id: &Uuid,
+    ) -> Result<(), AppError> { // for examiners ONLY
         Ok(())
     }
 }

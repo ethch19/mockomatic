@@ -11,20 +11,25 @@ use super::http::{
 };
 
 #[derive(Debug)]
-pub struct StationAllocation {
+pub struct SlotAllocation {
     pub circuit_id: Uuid,
     pub station_id: Uuid,
     pub candidate_1: Uuid,
     pub candidate_2: Uuid,
+}
+
+#[derive(Debug)]
+pub struct TimeAllocation {
+    pub circuit_id: Uuid,
+    pub station_id: Uuid,
     pub examiner: Uuid,
 }
 
-pub fn allocate_stations(
+pub fn allocate_by_slot( // for candidates ONLY
     circuits: &[Circuit],
     stations: &[Station], // shared stations
     candidates: &[Candidate],
-    examiners: &[Examiner],
-) -> Result<Vec<StationAllocation>, AppError> {
+) -> Result<Vec<SlotAllocation>, AppError> {
     let mut vars = variables!();
     let num_circuits = circuits.len();
     let num_stations = stations.len();
@@ -37,15 +42,6 @@ pub fn allocate_stations(
             .collect()
     })
     .collect();
-
-    // examiner_vars[c][k][s]: examiner k assigned to station s in circuit c
-    let examiner_vars: Vec<Vec<Vec<Variable>>> = (0..num_circuits)
-        .map(|_| {
-            (0..examiners.len())
-                .map(|_| (0..num_stations).map(|_| vars.add(variable().binary())).collect())
-                .collect()
-        })
-        .collect();
 
     // pair_vars[c][(i,j)][s]: candidates i and j paired at station s in circuit c
     let mut pair_vars = Vec::new();
@@ -72,39 +68,13 @@ pub fn allocate_stations(
         })
         .collect();
 
-    // 2. Each station in each circuit must have exactly 1 examiner
-    let st_ex_constraints: Vec<Constraint> = (0..num_circuits)
-        .flat_map(|c| {
-            let val_vars = examiner_vars.clone();
-            (0..num_stations).map(move |s| {
-                let examiner_sum: Expression = (0..examiners.len())
-                    .map(|k| val_vars[c][k][s])
-                    .sum();
-                examiner_sum.eq(1)
-            })
-        })
-        .collect();
-
-    // 3. Each candidate can be assigned to at most one station across all circuits
+    // Each candidate can be assigned to at most one station across all circuits
     let can_st_constraints: Vec<Constraint> = (0..candidates.len())
         .map(|i| {
             let station_sum: Expression = (0..num_circuits)
                 .flat_map(|c| {
                     let val_vars = candidate_vars.clone();
                     (0..num_stations).map(move |s| val_vars[c][i][s])
-                })
-                .sum();
-            station_sum.leq(1)
-        })
-        .collect();
-
-    // 4. Each examiner can be assigned to at most one station across all circuits
-    let ex_st_constraints: Vec<Constraint> = (0..examiners.len())
-        .map(|k| {
-            let station_sum: Expression = (0..num_circuits)
-                .flat_map(|c| {
-                    let val_vars = examiner_vars.clone();
-                    (0..num_stations).map(move |s| val_vars[c][k][s])
                 })
                 .sum();
             station_sum.leq(1)
@@ -120,11 +90,6 @@ pub fn allocate_stations(
                     for (i, candidate) in candidates.iter().enumerate() {
                         if !candidate.female_only {
                             circuit_constraints.push(candidate_vars[c][i][s].into_expression().eq(0));
-                        }
-                    }
-                    for (k, examiner) in examiners.iter().enumerate() {
-                        if !examiner.female {
-                            circuit_constraints.push(examiner_vars[c][k][s].into_expression().eq(0));
                         }
                     }
                 }
@@ -151,9 +116,7 @@ pub fn allocate_stations(
 
     let all_constraints: Vec<Constraint> = vec![
         st_can_constraints,
-        st_ex_constraints,
         can_st_constraints,
-        ex_st_constraints,
         female_only_constraints,
         pairing_constraints,
     ]
@@ -199,20 +162,23 @@ pub fn allocate_stations(
             let candidate_1 = assigned_candidates[0];
             let candidate_2 = assigned_candidates[1];
 
-            let assigned_examiner: Uuid = (0..examiners.len())
-                .find(|&k| solution.value(examiner_vars[c][k][s]) > 0.5)
-                .map(|k| examiners[k].id)
-                .ok_or(anyhow!("Each station must have exactly 1 examiner"))?;
-
-            allocations.push(StationAllocation {
+            allocations.push(SlotAllocation {
                 circuit_id,
                 station_id: station.id,
                 candidate_1,
                 candidate_2,
-                examiner: assigned_examiner,
             });
         }
     }
 
     Ok(allocations)
+}
+
+pub fn allocate_by_time( // for examiners ONLY
+    circuits: &[Circuit],
+    stations: &[Station], // shared stations
+    examiners: &[Examiner],
+) -> Result<Vec<TimeAllocation>, AppError> {
+    // some hardcoded algo for assigning examiners
+    Ok(Vec::new())
 }

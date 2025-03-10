@@ -109,18 +109,41 @@ impl Session {
         let session_payload = req.session;
         let total_stations = req.stations.len() as i16;
 
+        let mut transaction = pool.begin().await.with_context(|| "Unable to create a transaction in database")?;
+
+        let mut runtime_sec: i64 = (session_payload.intermission_duration.microseconds / 1000000) * total_stations as i64; //division of microseconds trunucates forward
         if session_payload.feedback {
-            if session_payload.feedback_duration.is_none() {
+            if let Some(x) = &session_payload.feedback_duration {
+                runtime_sec +=  (x.microseconds / 1000000) * total_stations as i64;
+            } else {
                 return Err(AppError::from(anyhow!("Feedback set to true but feedback duration missing")));
             }
-        }
-        if session_payload.feedback_duration.is_some() {
-            if !session_payload.feedback {
+        } else {
+            if session_payload.feedback_duration.is_some() {
                 return Err(AppError::from(anyhow!("Feedback duration is given but feedback is set to false")));
             }
         }
+        if let Some(sta_duration) = req.stations.first() {
+            for i in 0..req.stations.len() {
+                if i == req.stations.len() - 1 && session_payload.static_at_end {
+                    break;
+                }
+                if req.stations[i].duration != sta_duration.duration {
+                    return Err(AppError::from(anyhow!("Stations have different durations")));
+                }
+            }
+            runtime_sec += (sta_duration.duration.microseconds / 1000000) * (total_stations as i64 - 1);
+            if let Some(last_station) = req.stations.last() {
+                runtime_sec += last_station.duration.microseconds / 1000000
+            } else {
+                return Err(AppError::from(anyhow!("Failed to add the duration of the last station")));
+            }
+        } else {
+            return Err(AppError::from(anyhow!("Failed to get the first station")));
+        }
 
-        let mut transaction = pool.begin().await.with_context(|| "Unable to create a transaction in database")?;
+        let runtime_dur = time::Duration::new(runtime_sec, 0);
+        trace!("Total runtime for 1 slot is {}", runtime_sec);
 
         let session_result = sqlx::query_as!(
             Session,
@@ -139,93 +162,25 @@ impl Session {
             session_payload.intermission_duration,
             session_payload.static_at_end)
             .fetch_one(&mut *transaction)
-            .await;
-
-        
-        if let Err(e) = session_result {
-            transaction.rollback().await.with_context(|| format!("Failed rollback whilst adding session. Failed transaction: {}", e))?;
-            return Err(AppError::from(anyhow!("Rolled back successful. Transaction failed whilst adding session: {}", e)));
-        }
-
-        let session_result = session_result.unwrap();
+            .await
+            .with_context(|| format!("Failed to create session from transaction"))?;
         
         for station in &req.stations {
-            let station_result = sqlx::query_as!(
-                Station,
-                r#"
-                INSERT INTO records.stations (session_id, title, index, duration)
-                VALUES ($1, $2, $3, $4)
-                RETURNING *
-                "#,
-                &session_result.id,
-                station.title,
-                station.index,
-                station.duration)
-                .fetch_one(&mut *transaction)
-                .await;
-
-            if let Err(e) = station_result {
-                transaction.rollback().await.with_context(|| format!("Failed rollback whilst adding station. Failed transaction: {}", e))?;
-                return Err(AppError::from(anyhow!("Rolled back successful. Transaction failed whilst adding station: {}", e)));
-            }
+            Station::create_tx(&mut transaction, &session_result.id, station).await?;
         }
 
         for slot in &req.slots {
-            let slot_result = sqlx::query_as!(
-                Slot,
-                r#"
-                INSERT INTO records.slots (session_id, slot_time)
-                VALUES ($1, $2)
-                RETURNING *
-                "#,
-                &session_result.id,
-                slot.slot_time)
-                .fetch_one(&mut *transaction)
-                .await;
-            if let Err(e) = slot_result {
-                transaction.rollback().await.with_context(|| format!("Failed rollback whilst adding slot. Failed transaction: {}", e))?;
-                return Err(AppError::from(anyhow!("Rolled back successful. Transaction failed whilst adding slot: {}", e)));
-            }
-            let slot_result = slot_result.unwrap();
+            let slot_result = Slot::create_tx(&mut transaction, &session_result.id, slot).await?;
+
             for run in &slot.runs {
-                let run_result = sqlx::query_as!(
-                    Run,
-                    r#"
-                    INSERT INTO records.runs (slot_id, scheduled_start, scheduled_end)
-                    VALUES ($1, $2, $3)
-                    RETURNING *
-                    "#,
-                    &slot_result.id,
-                    run.scheduled_start,
-                    run.scheduled_end)
-                    .fetch_one(&mut *transaction)
-                    .await;
-    
-                if let Err(e) = run_result {
-                    transaction.rollback().await.with_context(|| format!("Failed rollback whilst adding run. Failed transaction: {}", e))?;
-                    return Err(AppError::from(anyhow!("Rolled back successful. Transaction failed whilst adding run: {}", e)));
+                if let Some(run_endtime) = run.scheduled_start.checked_add(runtime_dur) {
+                    Run::create_tx(&mut transaction, &slot_result.id, run, run_endtime).await?;
+                } else {
+                    return Err(AppError::from(anyhow!("Failed to create run's scheduled end")));
                 }
             }
             for circuit in &slot.circuits {
-                let circuit_result = sqlx::query_as!(
-                    Circuit,
-                    r#"
-                    INSERT INTO records.circuits (session_id, slot_id, key, female_only, intermission)
-                    VALUES ($1, $2, $3, $4, $5)
-                    RETURNING *
-                    "#,
-                    &session_result.id,
-                    &slot_result.id,
-                    circuit.key,
-                    circuit.female_only,
-                    false)
-                    .fetch_one(&mut *transaction)
-                    .await;
-    
-                if let Err(e) = circuit_result {
-                    transaction.rollback().await.with_context(|| format!("Failed rollback whilst adding circuit. Failed transaction: {}", e))?;
-                    return Err(AppError::from(anyhow!("Rolled back successful. Transaction failed whilst adding circuit: {}", e)));
-                }
+                Circuit::create_tx(&mut transaction, &session_result.id, &slot_result.id, circuit).await?;
             }
         }
 

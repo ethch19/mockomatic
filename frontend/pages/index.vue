@@ -26,17 +26,11 @@
         </div>
       </template>
       <Column selectionMode="multiple" headerStyle="width: 3rem" />
-      <Column field="id" header="ID" headerStyle="width: 15rem">
-        <template #body="{ data }"> {{ data.id }} </template>
-      </Column>
-      <Column field="organiser_id" header="Organiser ID" headerStyle="width: 15rem">
-        <template #body="{ data }"> {{ data.organiser_id }} </template>
+      <Column field="scheduled_date" header="Scheduled Date" sortable>
+        <template #body="{ data }"> {{ formatDate(data.scheduled_date) }} </template>
       </Column>
       <Column field="organisation" header="Organisation" headerStyle="width: 5rem">
         <template #body="{ data }"> {{ data.organisation }} </template>
-      </Column>
-      <Column field="scheduled_date" header="Scheduled Date" sortable>
-        <template #body="{ data }"> {{ formatDate(data.scheduled_date) }} </template>
       </Column>
       <Column field="location" header="Location" headerStyle="width: 10rem">
         <template #body="{ data }"> {{ data.location }} </template>
@@ -44,11 +38,17 @@
       <Column field="total_stations" header="Total Stations" headerStyle="width: 10rem">
         <template #body="{ data }"> {{ data.total_stations }} </template>
       </Column>
+      <Column field="feedback" header="Feedback" headerStyle="width: 10rem">
+        <template #body="{ data }"> {{ data.feedback ? "Yes" : "No" }} </template>
+      </Column>
+      <Column field="feedback_duration" header="Feedback Duration" headerStyle="width: 10rem">
+        <template #body="{ data }"> {{ formatInterval(data.feedback_duration) }} </template>
+      </Column>
       <Column field="intermission_duration" header="Intermission Duration" headerStyle="width: 10rem">
         <template #body="{ data }"> {{ formatInterval(data.intermission_duration) }} </template>
       </Column>
       <Column field="static_at_end" header="Static At End" headerStyle="width: 10rem">
-        <template #body="{ data }"> {{ data.static_at_end }} </template>
+        <template #body="{ data }"> {{ data.static_at_end ? "Yes" : "No" }} </template>
       </Column>
       <Column field="created_at" header="Created At" sortable>
         <template #body="{ data }"> {{ formatDate(data.created_at) }} </template>
@@ -184,7 +184,6 @@ onMounted(() => {
 <style scoped>
 .home-container {
   padding: 2rem;
-  min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;

@@ -1,89 +1,64 @@
 <template>
-  <div class="wizard-container">
-    <Card class="session-form">
-      <template #title>Set up Session - Step 2: Stations</template>
-      <template #content>
-        <div class="form-section">
-          <Button
-            label="Add Station"
-            icon="pi pi-plus"
-            class="p-button-secondary"
-            @click="addStation"
-          />
-          <DataTable
-            :value="sessionStore.form.stations"
-            :scrollable="true"
-            class="editable-table"
-            @row-reorder="onRowReorder"
-          >
-            <Column
-              :rowReorder="true"
-              headerStyle="width: 3rem"
-            />
+  <Toast class="text" />
+  <ConfirmDialog/>
+  <div class="wizard-container text">
+    <div class="main-container flex-column">
+      <h2>Create New Session</h2>
+      <Card class="session-form">
+        <template #title>Step 2: Stations</template>
+        <template #content>
+          <ConfirmPopup class="text" /> 
+          <DataTable :value="sessionStore.stationsMinutes" :scrollable="true" v-model:selection="selectedStations" selectionMode="multiple" @row-reorder="onRowReorder" >
+            <template #header>
+              <div class="flex-row table-header">
+                <Button label="Add Station" icon="pi pi-plus" severity="secondary" @click="addStation" />
+                <Button v-if="selectedStations.length > 0" label="Delete Selected" icon="pi pi-trash" severity="danger" outlined @click="confirmDelete($event)" />
+              </div>
+            </template>
+            <Column :rowReorder="true" headerStyle="width: 3rem" />
+            <Column field="index" header="Index">
+              <template #body="{ data, index }">
+                <label class="field">{{ index }}</label>
+              </template>
+            </Column>
             <Column field="title" header="Title">
               <template #body="{ data, index }">
-                <InputText
-                  v-model="data.title"
-                  placeholder="Station title"
-                  required
-                  @update:modelValue="sessionStore.setDirty"
-                />
+                <InputText v-model="data.title" placeholder="Station title" required @update:modelValue="sessionStore.setDirty" />
               </template>
             </Column>
             <Column field="durationMinutes" header="Duration (min)">
               <template #body="{ data, index }">
-                <InputNumber
-                  v-model="data.durationMinutes"
-                  :min="1"
-                  placeholder="Minutes"
-                  @update:modelValue="sessionStore.updateStationDuration(index, $event); sessionStore.setDirty"
-                />
+                <InputNumber v-model="data.duration" :min="1" placeholder="Minutes" @update:modelValue="sessionStore.updateStationDuration(index, $event); sessionStore.setDirty" />
               </template>
             </Column>
           </DataTable>
-        </div>
-        <div class="wizard-actions">
-          <Button
-            label="Previous"
-            icon="pi pi-arrow-left"
-            class="p-button-secondary"
-            @click="previousStep"
-          />
-          <Button
-            label="Next"
-            icon="pi pi-arrow-right"
-            class="p-button-primary"
-            @click="nextStep"
-            :disabled="!hasStations"
-          />
-          <Button
-            label="Cancel"
-            icon="pi pi-times"
-            class="p-button-secondary p-button-text"
-            @click="cancel"
-          />
-        </div>
-      </template>
-    </Card>
+        </template>
+        <template #footer>
+          <div class="wizard-actions">
+            <Button label="Previous" icon="pi pi-arrow-left" severity="secondary" @click="previousStep" />
+            <Button label="Next" icon="pi pi-arrow-right" @click="nextStep" :disabled="!hasStations" />
+            <Button label="Cancel" icon="pi pi-times" severity="secondary" @click="cancel" />
+          </div>
+        </template>
+      </Card>
+    </div>
   </div>
 </template>
 
 <script lang="ts" setup>
 import { useSessionCreationStore } from "~/stores/sessionCreation";
-import { useRouter } from "vue-router";
-import Card from "primevue/card";
-import Button from "primevue/button";
-import InputText from "primevue/inputtext";
-import InputNumber from "primevue/inputnumber";
-import DataTable from "primevue/datatable";
-import Column from "primevue/column";
+import { useToast } from "primevue/usetoast";
+import { useConfirm } from "primevue/useconfirm";
 
 definePageMeta({
   layout: "default",
 });
 
 const sessionStore = useSessionCreationStore();
+const selectedStations = ref([]);
 const router = useRouter();
+const confirm = useConfirm();
+const toast = useToast();
 
 const hasStations = computed(() => sessionStore.form.stations.length > 0);
 
@@ -92,17 +67,17 @@ const addStation = () => {
 };
 
 const onRowReorder = (event) => {
-  sessionStore.onRowReorder(event);
+  sessionStore.onStationRowReorder(event);
 };
 
 const previousStep = () => {
   sessionStore.step = 1;
-  router.push("/sessions/new/");
+  router.push("/sessions/new/config");
 };
 
 const nextStep = () => {
   sessionStore.step = 3;
-  router.push("/sessions/new/circuits");
+  router.push("/sessions/new/slots");
 };
 
 const cancel = () => {
@@ -117,7 +92,29 @@ const cancel = () => {
   }
 };
 
-// Warn on beforeunload if there are unsaved changes
+const confirmDelete = (event) => {
+  confirm.require({
+    target: event.currentTarget,
+    message: `Are you sure you want to delete ${selectedStations.value.length} stations(s)?`,
+    header: "Confirm Deletion",
+    icon: "pi pi-info-circle",
+    rejectProps: {
+      label: "Cancel",
+      severity: "secondary",
+      outlined: true
+    },
+    acceptProps: {
+        label: "Delete",
+        severity: "danger"
+    },
+    accept: () => {
+      toast.add({ severity: "info", summary: "Confirmed", detail: "Stations Deleted", life: 3000 });
+      sessionStore.removeStations(selectedStations.value)
+      selectedStations.value = [];
+    },
+  });
+}
+
 onBeforeMount(() => {
   window.onbeforeunload = () => {
     if (sessionStore.isDirty) {
@@ -139,17 +136,32 @@ onUnmounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
   padding: 2rem;
+  width: 100%;
+}
+
+.main-container {
+  width: 50%;
+}
+
+.table-header {
+  justify-content: space-between;
+}
+
+.main-container {
+  width: 50%;
 }
 
 .session-form {
   width: 100%;
-  max-width: 800px;
 }
 
 .form-section {
-  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: flex-start;
+  align-content: flex-start;
 }
 
 .editable-table :deep(.p-datatable-tbody > tr) {

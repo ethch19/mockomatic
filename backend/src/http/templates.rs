@@ -1,5 +1,5 @@
 use anyhow::{Context, anyhow};
-use axum::{extract::{Json, State}, http::StatusCode, response::IntoResponse, routing::post, Extension};
+use axum::{extract::{Json, State}, http::StatusCode, response::IntoResponse, routing::{get, post}, Extension};
 use serde::{Deserialize, Serialize};
 use tower_sessions::session;
 use uuid::Uuid;
@@ -12,8 +12,8 @@ use validator::Validate;
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/create", post(TemplateSession::create))
-        .route("/get", post(TemplateSession::get))
-        .route("/get-all", post(TemplateSession::get_all))
+        .route("/get", get(TemplateSession::get))
+        .route("/get-all", get(TemplateSession::get_all))
         .route("/update", post(TemplateSession::update))
         .route("/delete", post(TemplateSession::delete))
 }

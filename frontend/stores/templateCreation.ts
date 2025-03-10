@@ -5,7 +5,7 @@ export const useTemplateCreationStore = defineStore("templateCreation", {
     template: {
       name: "",
       feedback: false,
-      feedback_duration: null,
+      feedback_duration: 0,
       intermission_duration: 0,
       static_at_end: false,
     },
@@ -21,7 +21,7 @@ export const useTemplateCreationStore = defineStore("templateCreation", {
         template: {
           name: "",
           feedback: false,
-          feedback_duration: null,
+          feedback_duration: 0,
           intermission_duration: 0,
           static_at_end: false,
         },

@@ -23,9 +23,9 @@
       </div>
       <FloatLabel v-if="templateStore.template.feedback" variant="in" class="flex-row form-field">
         <div class="flex-column">
-          <InputNumber v-model="templateStore.template.feedback_duration" :min="1" suffix=" sec" />
+          <InputNumber inputId="feedback_duration" v-model="templateStore.template.feedback_duration" :min="1" suffix=" sec" />
         </div>
-        <label for="intermission">Feedback Duration</label>
+        <label for="feedback_duration">Feedback Duration</label>
       </FloatLabel>
     </div>
     <div class="stations-container">
@@ -51,16 +51,12 @@
         </Column>
         <Column field="title" header="Title">
           <template #body="{ data, index }">
-            <FormField :resolver="titleResolver">
-              <InputText v-model="data.title" @update:modelValue="templateStore.setDirty" placeholder="Station title" fluid />
-            </FormField>
+            <InputText v-model="data.title" @update:modelValue="templateStore.setDirty" placeholder="Station title" fluid />
           </template>
         </Column>
         <Column field="duration" header="Duration (min)">
           <template #body="{ data, index }">
-            <FormField :resolver="durationResolver">
-              <InputNumber v-model="data.duration" @update:modelValue="templateStore.setDirty" :min="1" placeholder="Minutes" suffix=" min" :useGrouping="false" />
-            </FormField>
+            <InputNumber v-model="data.duration" @update:modelValue="templateStore.setDirty" :min="1" placeholder="Minutes" suffix=" min" :useGrouping="false" />
           </template>
         </Column>
       </DataTable>
@@ -97,18 +93,22 @@ const onRowReorder = (event) => {
 };
 
 const submitForm = async () => {
-  const apiobj = {
+  let apiobj = {
     template_session: {
       ...templateStore.formatDuration(),
     },
     template_stations: templateStore.formatStations(),
   };
+  if (!apiobj.template_session.feedback) {
+    delete apiobj.template_session.feedback_duration;
+  }
   console.log(apiobj);
   try {
     const response = await apiFetch("/templates/create", {
       method: "POST",
       body: apiobj,
     });
+    templateStore.resetForm();
     router.push("/");
   } catch (error) {
     console.error("Submit error:", error);
@@ -116,7 +116,6 @@ const submitForm = async () => {
 };
 
 const confirmDelete = (event) => {
-  toast.add({ severity: "info", summary: "Worked", detail: "Delete Activated", life: 3000 });
   confirm.require({
     target: event.currentTarget,
     message: `Are you sure you want to delete ${selectedStations.value.length} stations(s)?`,
@@ -162,6 +161,13 @@ onBeforeMount(() => {
     }
   };
 });
+
+onUnmounted(() => {
+  window.onbeforeunload = null;
+  if (!router.currentRoute.value.path.startsWith("/templats/new")) {
+    templateStore.resetForm();
+  }
+});
 </script>
 
 <style scoped>
@@ -192,7 +198,6 @@ onBeforeMount(() => {
 .field-group {
   gap: 1rem;
   justify-content: start;
-  
 }
 
 .form-field {

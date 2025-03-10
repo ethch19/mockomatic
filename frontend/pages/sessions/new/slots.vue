@@ -1,122 +1,61 @@
 <template>
-  <div class="wizard-container">
-    <Card class="session-form">
-      <template #title>Set up Session - Step 4: Slots</template>
-      <template #content>
-        <div class="form-section">
-          <h4>AM Slot</h4>
-          <Button
-            label="Add Run"
-            icon="pi pi-plus"
-            class="p-button-secondary"
-            @click="addRun('AM')"
-          />
-          <DataTable
-            :value="sessionStore.form.slots.find(slot => slot.slot_time === 'AM')?.runs || []"
-            :scrollable="true"
-            class="editable-table"
-            :sortField="'scheduled_start'"
-            :sortOrder="1"
-          >
-            <Column field="scheduled_start" header="Scheduled Start (Time)">
-              <template #body="{ data }">
-                <InputMask
-                  v-model="data.scheduled_start"
-                  mask="99:99"
-                  placeholder="HH:mm"
-                  slotChar="0"
-                  required
-                  @update:modelValue="sessionStore.setDirty"
-                />
-              </template>
-            </Column>
-            <Column field="scheduled_end" header="Scheduled End (Time)">
-              <template #body="{ data }">
-                <InputMask
-                  v-model="data.scheduled_end"
-                  mask="99:99"
-                  placeholder="HH:mm"
-                  slotChar="0"
-                  required
-                  @update:modelValue="sessionStore.setDirty"
-                />
-              </template>
-            </Column>
-          </DataTable>
-          <h4>PM Slot</h4>
-          <Button
-            label="Add Run"
-            icon="pi pi-plus"
-            class="p-button-secondary"
-            @click="addRun('PM')"
-          />
-          <DataTable
-            :value="sessionStore.form.slots.find(slot => slot.slot_time === 'PM')?.runs || []"
-            :scrollable="true"
-            class="editable-table"
-            :sortField="'scheduled_start'"
-            :sortOrder="1"
-          >
-            <Column field="scheduled_start" header="Scheduled Start (Time)">
-              <template #body="{ data }">
-                <InputMask
-                  v-model="data.scheduled_start"
-                  mask="99:99"
-                  placeholder="HH:mm"
-                  slotChar="0"
-                  required
-                  @update:modelValue="sessionStore.setDirty"
-                />
-              </template>
-            </Column>
-            <Column field="scheduled_end" header="Scheduled End (Time)">
-              <template #body="{ data }">
-                <InputMask
-                  v-model="data.scheduled_end"
-                  mask="99:99"
-                  placeholder="HH:mm"
-                  slotChar="0"
-                  required
-                  @update:modelValue="sessionStore.setDirty"
-                />
-              </template>
-            </Column>
-          </DataTable>
-        </div>
-        <div class="wizard-actions">
-          <Button
-            label="Previous"
-            icon="pi pi-arrow-left"
-            class="p-button-secondary"
-            @click="previousStep"
-          />
-          <Button
-            label="Next"
-            icon="pi pi-arrow-right"
-            class="p-button-primary"
-            @click="nextStep"
-            :disabled="!hasRuns"
-          />
-          <Button
-            label="Cancel"
-            icon="pi pi-times"
-            class="p-button-secondary p-button-text"
-            @click="cancel"
-          />
-        </div>
-      </template>
-    </Card>
+  <Toast class="text" />
+  <div class="wizard-container text">
+    <div class="main-container flex-column">
+      <h2>Create New Session</h2>
+      <Card class="session-form">
+        <template #title>Step 3: Slots</template>
+        <template #content>
+          <ConfirmPopup class="text" />
+          <div class="button-actions">
+            <Button label="Add Slot" icon="pi pi-plus" severity="secondary" @click="addSlot()"/>
+          </div>
+          <div class="form-section">
+            <template v-for="cur_slot in sessionStore.form.slots" :key="cur_slot.key">
+              <h4>{{ "Slot " + cur_slot.key }}</h4>
+              <DataTable :value="cur_slot.runs" :scrollable="true" selectionMode="multiple" v-model:selection="selectedRuns[cur_slot.key]">
+                <template #header>
+                  <div class="flex-row table-header">
+                    <Button label="Add Run" icon="pi pi-plus" severity="secondary" @click="sessionStore.addRun(cur_slot.key)" />
+                    <div class="flex-row table-subheader">
+                      <Button v-if="selectedRuns[cur_slot.key].length > 0" label="Delete Selected" icon="pi pi-trash" severity="danger" outlined @click="confirmDeleteRuns(cur_slot.key, $event)" />
+                      <Button label="Delete Slot" icon="pi pi-trash" severity="danger" @click="confirmDeleteSlot(cur_slot.key, $event)" />
+                    </div>
+                  </div>
+                </template>
+                <Column field="scheduled_start" header="Scheduled Start (Time)">
+                  <template #body="{ data, index }">
+                    <InputMask v-model="data.scheduled_start" mask="99:99" placeholder="HH:MM" fluid @update:modelValue="sessionStore.setDirty; sessionStore.updateScheduledEnd($event, cur_slot.key, index)" />
+                  </template>
+                </Column>
+                <Column field="scheduled_end" header="Scheduled End (Time)">
+                  <template #body="{ data }">
+                    {{ data.scheduled_end }}
+                  </template>
+                </Column>
+                <Column field="flip_allocation" header="Flip Allocation">
+                  <template #body="{ data }">
+                    <ToggleSwitch v-model="data.flip_allocation" @update:modelValue="sessionStore.setDirty" fluid />
+                  </template>
+                </Column>
+              </DataTable>
+            </template>
+          </div>
+          <div class="wizard-actions">
+            <Button label="Previous" icon="pi pi-arrow-left" class="p-button-secondary" @click="previousStep" />
+            <Button label="Next" icon="pi pi-arrow-right" class="p-button-primary" @click="nextStep" :disabled="!hasRuns" />
+            <Button label="Cancel" icon="pi pi-times" class="p-button-secondary p-button-text" @click="cancel" />
+          </div>
+        </template>
+      </Card>
+    </div>
   </div>
 </template>
 
 <script lang="ts" setup>
 import { useSessionCreationStore } from "~/stores/sessionCreation";
-import { useRouter } from "vue-router";
-import Card from "primevue/card";
-import Button from "primevue/button";
-import DataTable from "primevue/datatable";
-import Column from "primevue/column";
-import InputMask from "primevue/inputmask";
+import { useToast } from "primevue/usetoast";
+import { useConfirm } from "primevue/useconfirm";
 
 definePageMeta({
   layout: "default",
@@ -124,27 +63,73 @@ definePageMeta({
 
 const sessionStore = useSessionCreationStore();
 const router = useRouter();
+const selectedRuns = ref({});
+const confirm = useConfirm();
+const toast = useToast();
 
 const hasRuns = computed(() => {
   return sessionStore.form.slots.some(slot => slot.runs.length > 0);
 });
 
-const addRun = (slotTime: string) => {
-  const slot = sessionStore.form.slots.find(s => s.slot_time === slotTime);
-  if (slot) {
-    slot.runs.push({ scheduled_start: "09:00", scheduled_end: "10:00" });
-    sessionStore.setDirty();
-  }
-};
+const addSlot = () => {
+  let key = sessionStore.addSlot();
+  selectedRuns.value[key] = [];
+}
+
+const confirmDeleteSlot = (slot_time: string, event) => {
+  confirm.require({
+    target: event.currentTarget,
+    message: `Are you sure you want to delete Slot ${slot_time}?`,
+    header: "Confirm Deletion",
+    icon: "pi pi-info-circle",
+    rejectProps: {
+      label: "Cancel",
+      severity: "secondary",
+      outlined: true
+    },
+    acceptProps: {
+        label: "Delete",
+        severity: "danger"
+    },
+    accept: () => {
+      toast.add({ severity: "info", summary: "Confirmed", detail: "Slot Deleted", life: 3000 });
+      sessionStore.removeSlot(slot_time);
+      selectedRuns.value[slot_time] = [];
+    },
+  });
+}
+
+const confirmDeleteRuns = (slot_time: string, event) => {
+  confirm.require({
+    target: event.currentTarget,
+    message: `Are you sure you want to delete ${selectedRuns.value[slot_time].length} run(s)?`,
+    header: "Confirm Deletion",
+    icon: "pi pi-info-circle",
+    rejectProps: {
+      label: "Cancel",
+      severity: "secondary",
+      outlined: true
+    },
+    acceptProps: {
+        label: "Delete",
+        severity: "danger"
+    },
+    accept: () => {
+      toast.add({ severity: "info", summary: "Confirmed", detail: "Runs Deleted", life: 3000 });
+      sessionStore.removeRuns(slot_time, selectedRuns.value[slot_time]);
+      selectedRuns.value[slot_time] = [];
+    },
+  });
+}
 
 const previousStep = () => {
-  sessionStore.step = 3;
-  router.push("/sessions/new/circuits");
+  sessionStore.step = 2;
+  router.push("/sessions/new/stations");
 };
 
 const nextStep = () => {
-  sessionStore.step = 5;
-  router.push("/sessions/new/review");
+  sessionStore.step = 4;
+  router.push("/sessions/new/circuits");
 };
 
 const cancel = () => {
@@ -159,13 +144,15 @@ const cancel = () => {
   }
 };
 
-// Warn on beforeunload if there are unsaved changes
 onBeforeMount(() => {
   window.onbeforeunload = () => {
     if (sessionStore.isDirty) {
       return "You have unsaved changes. Are you sure you want to leave?";
     }
   };
+  for (const slot of sessionStore.form.slots) {
+    selectedRuns.value[slot.key] = [];
+  }
 });
 
 onUnmounted(() => {
@@ -181,13 +168,24 @@ onUnmounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
   padding: 2rem;
+  width: 100%;
+}
+
+.main-container {
+  width: 50%;
+}
+
+.table-header {
+  justify-content: space-between;
+}
+.table-subheader {
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
 .session-form {
   width: 100%;
-  max-width: 800px;
 }
 
 .form-section {

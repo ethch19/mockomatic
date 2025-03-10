@@ -1,114 +1,52 @@
 <template>
+  <Toast class="text" />
   <div class="wizard-container text">
-    <Card class="session-form">
-      <template #title>Set up Session - Step 1: Configuration</template>
-      <template #content>
-        <div class="form-section">
-          <div class="form-group">
-            <label for="organisation">Organisation:</label>
-            <InputText
-              id="organisation"
-              v-model="sessionStore.form.session.organisation"
-              placeholder="Enter organisation"
-              required
-              @update:modelValue="sessionStore.setDirty"
-            />
+    <div class="main-container flex-column">
+      <h2>Create New Session</h2>
+      <Card class="session-form">
+        <template #title>Use Template</template>
+        <template #content>
+          <div class="form-section flex-row">
+            <Listbox v-model="selectedTemplate" :options="session_templates" optionLabel="name" checkmark @update:modelValue="templateSelected($event); sessionStore.setDirty" fluid>
+              <template #option="slotProps">
+                {{ slotProps.option.name }}
+              </template>
+            </Listbox>
           </div>
-          <div class="form-group">
-            <label for="scheduled_date">Scheduled Date:</label>
-            <Calendar
-              id="scheduled_date"
-              v-model="sessionStore.form.session.scheduled_date"
-              dateFormat="dd/mm/yy"
-              :showTime="false"
-              :yearRange="`2025:${new Date().getFullYear() + 10}`"
-              required
-              @update:modelValue="sessionStore.setDirty"
-            />
+        </template>
+        <template #footer>
+          <div class="wizard-actions">
+            <Button label="Next" icon="pi pi-arrow-right" @click="nextStep" />
+            <Button label="Cancel" icon="pi pi-times" severity="secondary" @click="cancel" />
           </div>
-          <div class="form-group">
-            <label for="location">Location:</label>
-            <InputText
-              id="location"
-              v-model="sessionStore.form.session.location"
-              placeholder="Enter location"
-              required
-              @update:modelValue="sessionStore.setDirty"
-            />
-          </div>
-          <div class="form-group">
-            <label for="intermission_duration">Intermission Duration (min:sec):</label>
-            <div class="duration-input">
-              <InputNumber
-                id="intermission_duration_min"
-                v-model="sessionStore.intermissionMinutes"
-                :min="0"
-                placeholder="Minutes"
-                @update:modelValue="sessionStore.updateIntermissionDuration(); sessionStore.setDirty"
-              />
-              <span>:</span>
-              <InputNumber
-                id="intermission_duration_sec"
-                v-model="sessionStore.intermissionSeconds"
-                :min="0"
-                :max="59"
-                placeholder="Seconds"
-                @update:modelValue="sessionStore.updateIntermissionDuration(); sessionStore.setDirty"
-              />
-            </div>
-          </div>
-          <div class="form-group">
-            <label for="static_at_end">Static at End:</label>
-            <Checkbox
-              id="static_at_end"
-              v-model="sessionStore.form.session.static_at_end"
-              :binary="true"
-              name="static_at_end"
-              @update:modelValue="sessionStore.setDirty"
-            />
-          </div>
-        </div>
-        <div class="wizard-actions">
-          <Button
-            label="Next"
-            icon="pi pi-arrow-right"
-            class="p-button-primary"
-            @click="nextStep"
-            :disabled="!isValid"
-          />
-          <Button
-            label="Cancel"
-            icon="pi pi-times"
-            class="p-button-secondary p-button-text"
-            @click="cancel"
-          />
-        </div>
-      </template>
-    </Card>
+        </template>
+      </Card>
+    </div>
   </div>
 </template>
 
 <script lang="ts" setup>
 import { useSessionCreationStore } from "~/stores/sessionCreation";
+import { apiFetch } from "~/composables/apiFetch"
+import { useToast } from "primevue/usetoast";
 
 definePageMeta({
   layout: "default",
 });
 
+const selectedTemplate = ref();
+const session_templates = ref([]);
 const sessionStore = useSessionCreationStore();
+const toast = useToast();
 const router = useRouter();
 
-const isValid = computed(() => {
-  return !!sessionStore.form.session.organisation &&
-         !!sessionStore.form.session.scheduled_date &&
-         !!sessionStore.form.session.location;
-});
+const templateSelected = (event) => {
+  sessionStore.applyTemplate(event);
+  toast.add({ severity: "info", summary: "Confirmed", detail: "Template applied", life: 3000 });
+}
 
 const nextStep = () => {
-  if (isValid.value) {
-    sessionStore.step = 2;
-    router.push("/sessions/new/stations");
-  }
+  router.push("/sessions/new/config");
 };
 
 const cancel = () => {
@@ -123,7 +61,18 @@ const cancel = () => {
   }
 };
 
-// Warn on beforeunload if there are unsaved changes
+onMounted(async () => {
+  try {
+    const response = await apiFetch("/templates/get-all", {
+      method: "GET",
+    });
+    session_templates.value = response;
+    console.log(response);
+  } catch (error) {
+    console.error("GET templates error:", error);
+  }
+});
+
 onBeforeMount(() => {
   window.onbeforeunload = () => {
     if (sessionStore.isDirty) {
@@ -145,27 +94,24 @@ onUnmounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
   padding: 2rem;
+  width: 100%;
+}
+
+.main-container {
+  width: 50%;
 }
 
 .session-form {
   width: 100%;
-  max-width: 800px;
 }
 
 .form-section {
-  margin-bottom: 2rem;
-}
-
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: bold;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: flex-start;
+  align-content: flex-start;
 }
 
 .duration-input {
@@ -178,5 +124,27 @@ onUnmounted(() => {
   display: flex;
   gap: 1rem;
   justify-content: flex-end;
+}
+
+.toggle {
+  gap: 1rem;
+  justify-content: center;
+  align-items: center;
+  align-self: center;
+}
+
+.toggle-group {
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.duration-field {
+  width: 5rem;
+}
+
+.p-inputgroup {
+  min-width: 45%;
+  max-width: 48%;
+  width: auto;
 }
 </style>

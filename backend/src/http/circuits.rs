@@ -2,6 +2,7 @@ use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use crate::error::AppError;
+use sqlx::Transaction;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Circuit {
@@ -41,5 +42,29 @@ impl Circuit {
         .fetch_all(pool)
         .await
         .map_err(|_| AppError::from(anyhow!("Cannot get circuits with slot_id: {}", slot_id)));
+    }
+    
+    pub async fn create_tx(
+        tx: &mut Transaction<'static, sqlx::Postgres>,
+        session_id: &Uuid,
+        slot_id: &Uuid,
+        payload: &CircuitPayload,
+    ) -> Result<Circuit, AppError> {
+        sqlx::query_as!(
+            Circuit,
+            r#"
+            INSERT INTO records.circuits (session_id, slot_id, key, female_only, feedback, intermission)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING *
+            "#,
+            session_id,
+            slot_id,
+            payload.key,
+            payload.female_only,
+            false,
+            false)
+            .fetch_one(&mut **tx)
+            .await
+            .map_err(|_| AppError::from(anyhow!("Failed to insert circuit by transaction")))
     }
 }

@@ -12,7 +12,7 @@ use std::io::Cursor;
 
 use crate::error::AppError;
 
-use super::{slots::SlotTime, users::AccessClaims, AppState, SomethingID};
+use super::{users::AccessClaims, AppState, SomethingID, runs::RunTime};
 
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
@@ -71,7 +71,6 @@ pub struct ExaminerChange {
     pub pm: Option<bool>,
     pub checked_in: Option<bool>, 
 }
-
 
 const REQUIRED_EXAMINER_HEADERS: &[&str] = &[
     "first_name",
@@ -309,40 +308,37 @@ impl Examiner {
         .map_err(|_| AppError::from(anyhow!("Cannot get all examiners with session_id: {}", session_id)))
     }
 
-    pub async fn get_all_by_session_slot(
+    pub async fn get_all_by_time(
         pool: &sqlx::PgPool,
-        session_id: Uuid,
-        slot_time: SlotTime,
+        session_id: &Uuid,
+        run_time: RunTime,
     ) -> Result<Vec<Examiner>, AppError> {
-        match slot_time {
-            SlotTime::AM => {
+        match run_time{
+            RunTime::AM => {
                 sqlx::query_as!(
                     Examiner,
                     r#"
-                    SELECT * FROM people.examiners WHERE session_id = $1 AND am = $2
+                    SELECT * FROM people.examiners WHERE session_id = $1 AND am = TRUE
                     "#,
-                    session_id,
-                    true
+                    session_id
                 )
                 .fetch_all(pool)
                 .await
-                .map_err(|_| AppError::from(anyhow!("Cannot get all AM examiners with session_id: {}", session_id)))
-            }
-            SlotTime::PM => {
+                .map_err(|_| AppError::from(anyhow!("Unable to get all AM examiners")))
+            },
+            RunTime::PM => {
                 sqlx::query_as!(
                     Examiner,
                     r#"
-                    SELECT * FROM people.examiners WHERE session_id = $1 AND pm = $2
+                    SELECT * FROM people.examiners WHERE session_id = $1 AND pm = TRUE
                     "#,
-                    session_id,
-                    true
+                    session_id
                 )
                 .fetch_all(pool)
                 .await
-                .map_err(|_| AppError::from(anyhow!("Cannot get all PM examiners with session_id: {}", session_id)))
+                .map_err(|_| AppError::from(anyhow!("Unable to get all PM examiners")))
             }
         }
-        
     }
 
     pub async fn create(
@@ -417,7 +413,7 @@ impl Examiner {
         )
         .execute(&pool)
         .await
-        .map_err(|_| AppError::from(anyhow!("Cannot delete examiner with id: {}", examiner_id)));
+        .with_context(|| format!("Cannot delete examiner with id: {}", examiner_id))?;
         Ok(())
     }
 }

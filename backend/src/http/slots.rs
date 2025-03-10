@@ -3,11 +3,12 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use super::{circuits::CircuitPayload, runs::RunPayload};
 use crate::error::AppError;
+use sqlx::Transaction;
 
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SlotPayload {
-    pub slot_time: String,
+    pub key: String,
     pub runs: Vec<RunPayload>,
     pub circuits: Vec<CircuitPayload>
 }
@@ -16,49 +17,42 @@ pub struct SlotPayload {
 pub struct Slot {
     pub id: Uuid,
     pub session_id: Uuid,
-    pub slot_time: String
-}
-
-#[derive(Debug)]
-pub enum SlotTime {
-    AM,
-    PM,
+    pub key: String
 }
 
 impl Slot {
-    pub async fn get_by_session(
+    pub async fn get_all_by_session(
         pool: &sqlx::PgPool,
         session_id: &Uuid,
-        slot_time: SlotTime,
-    ) -> Result<Slot, AppError> {
-        match slot_time {
-            SlotTime::AM => {
-                return sqlx::query_as!(
-                    Slot,
-                    r#"
-                    SELECT * FROM records.slots WHERE session_id = $1 AND slot_time = $2
-                    "#,
-                    session_id,
-                    "AM",
-                )
-                .fetch_one(pool)
-                .await
-                .map_err(|_| AppError::from(anyhow!("Cannot get AM slot with session_id: {}", session_id)));
-            }
-            SlotTime::PM => {
-                return sqlx::query_as!(
-                    Slot,
-                    r#"
-                    SELECT * FROM records.slots WHERE session_id = $1 AND slot_time = $2
-                    "#,
-                    session_id,
-                    "PM",
-                )
-                .fetch_one(pool)
-                .await
-                .map_err(|_| AppError::from(anyhow!("Cannot get PM slot with session_id: {}", session_id)));
-            }
-        }
+    ) -> Result<Vec<Slot>, AppError> {
+        sqlx::query_as!(
+            Slot,
+            r#"
+            SELECT * FROM records.slots WHERE session_id = $1 
+            "#,
+            session_id,
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(|_| AppError::from(anyhow!("Cannot get slots with session_id: {}", session_id)))
     }
 
+    pub async fn create_tx(
+        tx: &mut Transaction<'static, sqlx::Postgres>,
+        session_id: &Uuid,
+        payload: &SlotPayload,
+    ) -> Result<Slot, AppError> {
+        sqlx::query_as!(
+            Slot,
+            r#"
+            INSERT INTO records.slots (session_id, key)
+            VALUES ($1, $2)
+            RETURNING *
+            "#,
+            session_id,
+            payload.key)
+            .fetch_one(&mut **tx)
+            .await
+            .map_err(|_| AppError::from(anyhow!("Failed to insert slot by transaction")))
+    }
 }

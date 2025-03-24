@@ -1,5 +1,4 @@
 <template>
-  <Toast class="text" />
   <div class="wizard-container text">
     <div class="main-container flex-column">
       <h2>Create New Session</h2>

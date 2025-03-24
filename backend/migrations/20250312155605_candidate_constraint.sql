@@ -1,0 +1,3 @@
+ALTER TABLE people.candidates
+ALTER am DROP NOT NULL,
+ALTER pm DROP NOT NULL; 

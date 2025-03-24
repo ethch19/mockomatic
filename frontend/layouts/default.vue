@@ -1,5 +1,6 @@
 <template>
   <div class="header-container flex-column">
+    <Toast position="bottom-right" class="text" />
     <header class="flex-column">
         <img class="long-logo" src="/img/long_logo.png" alt="Logo">
     </header>
@@ -10,7 +11,9 @@
 </template>
 
 <script lang="ts" setup>
+import { useToast } from 'primevue/usetoast';
 
+const toast = useToast();
 </script>
 
 <style>

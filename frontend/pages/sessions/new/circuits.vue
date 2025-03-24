@@ -1,5 +1,4 @@
 <template>
-  <Toast class="text" />
   <div class="wizard-container text">
     <div class="main-container flex-column">
       <h2>Create New Session</h2>
@@ -30,12 +29,12 @@
           </template>
         </template>
         <template #footer>
-            <div class="wizard-actions">
-              <Button label="Previous" icon="pi pi-arrow-left" severity="secondary" @click="previousStep" />
-              <Button label="Next" icon="pi pi-arrow-right" @click="nextStep" :disabled="!hasCircuits" />
-              <Button label="Cancel" icon="pi pi-times" severity="secondary" @click="cancel" />
-            </div>
-          </template>
+          <div class="wizard-actions">
+            <Button label="Previous" icon="pi pi-arrow-left" severity="secondary" @click="previousStep" />
+            <Button label="Next" icon="pi pi-arrow-right" @click="nextStep" :disabled="!hasCircuits" />
+            <Button label="Cancel" icon="pi pi-times" severity="secondary" @click="cancel" />
+          </div>
+        </template>
       </Card>
     </div>
   </div>

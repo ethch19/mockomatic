@@ -16,6 +16,7 @@ pub mod circuits;
 pub mod runs;
 pub mod candidates;
 pub mod examiners;
+mod upload;
 mod allocations;
 mod templates;
 mod pg_interval;
@@ -64,10 +65,15 @@ pub fn router_app(db: sqlx::PgPool) -> Router {
     let v1_routes = Router::new()
         .nest("/users", users::router())
         .nest("/sessions", sessions::router())
+        .nest("/stations", stations::router())
+        .nest("/slots", slots::router())
+        .nest("/runs", runs::router())
+        .nest("/circuits", circuits::router())
         .nest("/examiners", examiners::router())
         .nest("/candidates", candidates::router())
         .nest("/allocations", allocations::router())
         .nest("/templates", templates::router())
+        .nest("/files", upload::router())
         .layer(from_fn_with_state(app_state.clone(), mid_jwt_auth))
         .nest("/users", users::login_router());
     Router::new()

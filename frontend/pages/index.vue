@@ -2,7 +2,8 @@
   <div class="home-container text">
     <div class="button-container">
       <Button label="New Session" icon="pi pi-plus" @click="navigateTo('/sessions/new/')" />
-      <Button label="New Template" icon="pi pi-plus" severity="secondary" @click="navigateTo('/templates/new/')" />
+      <Button label="New Template" icon="pi pi-plus" severity="primary" outlined @click="navigateTo('/templates/new/')" />
+      <Button label="View Templates" icon="pi pi-box" severity="secondary" @click="navigateTo('/templates/')" />
     </div>
     <DataTable
       :value="sessions"
@@ -152,7 +153,8 @@ const confirmDelete = () => {
     icon: "pi pi-exclamation-triangle",
     accept: async () => {
       try {
-        await $fetch("/sessions/delete", {
+        console.log(selectedSessions.value.map(s => s.id));
+        await apiFetch("/sessions/delete", {
           method: "POST",
           body: { ids: selectedSessions.value.map(s => s.id) },
         });

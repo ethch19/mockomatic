@@ -1,5 +1,5 @@
 <template>
-  <Toast class="text" />
+  <ConfirmPopup class="text" /> 
   <div class="wizard-container text flex-column">
     <h3 class="subhead">Create new template</h3>
     <div class="flex-row field-group">
@@ -36,7 +36,6 @@
           <ToggleSwitch v-model="templateStore.template.static_at_end" inputId="static"/>
         </div>
       </div>
-      <ConfirmPopup class="text" /> 
       <DataTable :value="templateStore.stations" v-model:selection="selectedStations" selectionMode="multiple" :scrollable="true" @row-reorder="onRowReorder">
         <template #header>
           <div class="table-header">

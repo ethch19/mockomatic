@@ -1,8 +1,8 @@
 use anyhow::{Context, anyhow};
-use axum::{extract::{Json, State}, http::StatusCode, response::IntoResponse, routing::{get, post}, Extension};
+use axum::{extract::{Json, State, Query}, http::StatusCode, response::IntoResponse, routing::{get, post}, Extension};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use super::{users::AccessClaims, AppState, SomethingID, allocations::Availability};
+use super::{users::AccessClaims, AppState, SomethingID, SomethingMultipleID, allocations::Availability, runs::RunTime};
 use crate::error::AppError;
 
 pub fn router() -> axum::Router<AppState> {
@@ -12,7 +12,7 @@ pub fn router() -> axum::Router<AppState> {
         .route("/get-slot-all", get(Candidate::get_slot_all))
         .route("/create", post(create))
         .route("/update", post(Candidate::update))
-        .route("/delete", post(Candidate::delete))
+        .route("/delete", post(delete))
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -25,8 +25,8 @@ pub struct Candidate {
     pub female_only: bool,
     pub partner_pref: Option<String>,
     pub checked_in: bool, 
-    pub am: bool,
-    pub pm: bool,
+    pub am: Option<bool>,
+    pub pm: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -38,8 +38,8 @@ pub struct CandidatePayload {
     pub female_only: bool,
     pub partner_pref: Option<String>,
     pub checked_in: bool, 
-    pub am: bool,
-    pub pm: bool,
+    pub am: Option<bool>,
+    pub pm: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -54,6 +54,17 @@ pub struct CandidateChange {
     pub checked_in: Option<bool>, 
     pub am: Option<bool>,
     pub pm: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CandidateExcel {
+    pub first_name: String,
+    pub last_name: String,
+    pub shortcode: String,
+    pub female_only: bool,
+    pub partner_pref: Option<String>,
+    pub am: Option<bool>,
+    pub pm: Option<bool>
 }
 
 #[derive(Debug, Serialize)]
@@ -77,27 +88,35 @@ async fn create(
 async fn get_session_all(
     State(pool): State<sqlx::PgPool>,
     Extension(claim): Extension<AccessClaims>,
-    Json(session_id): Json<SomethingID>,
+    session_id: Query<SomethingID>,
+) -> Result<impl IntoResponse, AppError> {
+    let result = Candidate::get_all_by_session(&pool, &session_id.0.id).await?;
+    Ok((StatusCode::OK, Json(result)).into_response())
+}
+
+async fn delete(
+    State(pool): State<sqlx::PgPool>,
+    Extension(claim): Extension<AccessClaims>,
+    Json(candidates): Json<SomethingMultipleID>,
 ) -> Result<impl IntoResponse, AppError> {
     if !claim.admin {
         return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
     }
-    let result = Candidate::get_session_all(&pool, &session_id.id).await?;
-    Ok((StatusCode::OK, Json(result)).into_response())
+    Candidate::delete(pool, candidates.ids).await?;
+    Ok((StatusCode::OK).into_response())
 }
 
-
-pub async fn create_fill(session_id: Uuid, pool: &sqlx::PgPool, time: Option<Availability>) -> Result<Candidate, AppError> {
+pub async fn create_fill(session_id: Uuid, pool: &sqlx::PgPool, time: Option<Availability>, female_only: bool) -> Result<Candidate, AppError> {
     if let Some(can_ava) = time {
         let candidate = CandidatePayload {
             session_id,
             first_name: "fill".to_string(),
             last_name: "candidate".to_string(),
             shortcode: Uuid::new_v4().to_string(),
-            female_only: false,
+            female_only,
             partner_pref: None,
-            am: can_ava.am,
-            pm: can_ava.pm,
+            am: Some(can_ava.am),
+            pm: Some(can_ava.pm),
             checked_in: false,
         };
         Candidate::create(pool, candidate).await
@@ -107,10 +126,10 @@ pub async fn create_fill(session_id: Uuid, pool: &sqlx::PgPool, time: Option<Ava
             first_name: "fill".to_string(),
             last_name: "candidate".to_string(),
             shortcode: Uuid::new_v4().to_string(),
-            female_only: false,
+            female_only,
             partner_pref: None,
-            am: true,
-            pm: true,
+            am: Some(true),
+            pm: Some(true),
             checked_in: false,
         };
         Candidate::create(pool, candidate).await
@@ -136,7 +155,7 @@ impl Candidate {
         Ok((StatusCode::OK, Json(result)).into_response())
     }
 
-    pub async fn get_session_all(
+    pub async fn get_all_by_session(
         pool: &sqlx::PgPool,
         session_id: &Uuid,
     ) -> Result<Vec<Candidate>, AppError> {
@@ -170,6 +189,109 @@ impl Candidate {
         .await
         .map_err(|_| AppError::from(anyhow!("Cannot get all candidates with specific avability")))
     }
+
+    pub async fn get_female_ava_all(
+        pool: &sqlx::PgPool,
+        session_id: &Uuid,
+        ava: Availability,
+    ) -> Result<Vec<Candidate>, AppError> {
+        sqlx::query_as!(
+            Candidate,
+            r#"
+            SELECT * FROM people.candidates WHERE session_id = $1 AND female_only = TRUE AND am = $2 AND pm = $3
+            "#,
+            session_id,
+            ava.am,
+            ava.pm
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(|_| AppError::from(anyhow!("Cannot get all female_only candidates with specific avability")))
+    }
+
+    pub async fn get_all_by_time(
+        pool: &sqlx::PgPool,
+        session_id: &Uuid,
+        run_time: RunTime,
+    ) -> Result<Vec<Candidate>, AppError> {
+        match run_time {
+            RunTime::AM => {
+                sqlx::query_as!(
+                    Candidate,
+                    r#"
+                    SELECT * FROM people.candidates WHERE session_id = $1 AND am = TRUE
+                    "#,
+                    session_id
+                )
+                .fetch_all(pool)
+                .await
+                .map_err(|_| AppError::from(anyhow!("Cannot get all AM candidates")))
+            },
+            RunTime::PM => {
+                sqlx::query_as!(
+                    Candidate,
+                    r#"
+                    SELECT * FROM people.candidates WHERE session_id = $1 AND pm = TRUE
+                    "#,
+                    session_id
+                )
+                .fetch_all(pool)
+                .await
+                .map_err(|_| AppError::from(anyhow!("Cannot get all PM candidates")))
+            }
+        }
+        
+    }
+
+    pub async fn get_all_female_by_time(
+        pool: &sqlx::PgPool,
+        session_id: &Uuid,
+        run_time: RunTime,
+    ) -> Result<Vec<Candidate>, AppError> { // includes BOTH AM/PM candidates and ones that are available full day
+        match run_time{
+            RunTime::AM => {
+                sqlx::query_as!(
+                    Candidate,
+                    r#"
+                    SELECT * FROM people.candidates WHERE session_id = $1 AND am = TRUE AND female_only = TRUE
+                    "#,
+                    session_id,
+                )
+                .fetch_all(pool)
+                .await
+                .map_err(|_| AppError::from(anyhow!("Cannot get all AM female_only candidates")))
+            },
+            RunTime::PM => {
+                sqlx::query_as!(
+                    Candidate,
+                    r#"
+                    SELECT * FROM people.candidates WHERE session_id = $1 AND pm = TRUE  AND female_only = TRUE
+                    "#,
+                    session_id,
+                )
+                .fetch_all(pool)
+                .await
+                .map_err(|_| AppError::from(anyhow!("Cannot to get all PM female_only candidates")))
+            }
+        }
+    }
+
+    pub async fn get_female_all(
+        pool: &sqlx::PgPool,
+        session_id: &Uuid,
+    ) -> Result<Vec<Candidate>, AppError> {
+        sqlx::query_as!(
+            Candidate,
+            r#"
+            SELECT * FROM people.candidates WHERE session_id = $1 AND female_only = TRUE
+            "#,
+            session_id,
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(|_| AppError::from(anyhow!("Cannot get all female_only candidates")))
+    }
+
 
     pub async fn get_slot_all(
     ) -> Result<impl IntoResponse, AppError> {
@@ -245,24 +367,25 @@ impl Candidate {
     }
 
     pub async fn delete(
-        State(pool): State<sqlx::PgPool>,
-        Extension(claim): Extension<AccessClaims>,
-        Json(candidate): Json<SomethingID>,
-    ) -> Result<impl IntoResponse, AppError> {
-        if !claim.admin {
-            return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
-        }
-        let _ = sqlx::query!(
-            r#"
-            DELETE FROM people.candidates
-            WHERE id = $1
-            "#,
-            candidate.id
-        )
-        .execute(&pool)
-        .await
-        .with_context(|| format!("Cannot delete candidate"))?;
+        pool: sqlx::PgPool,
+        candidate_ids: Vec<Uuid>,
+    ) -> Result<(), AppError> {
+        let mut transaction = pool.begin().await.with_context(|| "Unable to create a transaction in database")?;
 
-        Ok(StatusCode::OK.into_response())
+        for candidate_id in &candidate_ids {
+            sqlx::query!(
+                r#"
+                DELETE FROM people.candidates
+                WHERE id = $1
+                "#,
+                candidate_id
+            )
+            .execute(&mut *transaction)
+            .await
+            .with_context(|| format!("Cannot delete candidate"))?;
+        }
+
+        transaction.commit().await.with_context(|| format!("Rolled back successful. Transaction failed to commit"))?;
+        Ok(())
     }
 }

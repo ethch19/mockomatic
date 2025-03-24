@@ -1,8 +1,16 @@
+use axum::{extract::{State, Json, Query}, http::StatusCode, response::IntoResponse, routing::get};
 use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use crate::error::AppError;
 use sqlx::Transaction;
+
+use super::{SomethingID, AppState};
+
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/get-slot", get(get_by_slot))
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Circuit {
@@ -27,6 +35,14 @@ pub struct CircuitPayload {
     pub female_only: bool
 }
 
+async fn get_by_slot(
+    State(pool): State<sqlx::PgPool>,
+    Query(slot_id): Query<SomethingID>,
+) -> Result<impl IntoResponse, AppError> {
+    let result = Circuit::get_by_slot(&pool, &slot_id.id).await?;
+    Ok((StatusCode::OK, Json(result)).into_response())
+}
+
 impl Circuit {
     pub async fn get_by_slot(
         pool: &sqlx::PgPool,
@@ -44,6 +60,23 @@ impl Circuit {
         .map_err(|_| AppError::from(anyhow!("Cannot get circuits with slot_id: {}", slot_id)));
     }
     
+    pub async fn get_female_slot(
+        pool: &sqlx::PgPool,
+        slot_id: &Uuid,
+    ) -> Result<Vec<Circuit>, AppError> {
+        return sqlx::query_as!(
+            Circuit,
+            r#"
+            SELECT * FROM records.circuits WHERE slot_id = $1 AND female_only = $2
+            "#,
+            slot_id,
+            true,
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(|_| AppError::from(anyhow!("Cannot get female_only circuits with slot_id: {}", slot_id)));
+    }
+
     pub async fn create_tx(
         tx: &mut Transaction<'static, sqlx::Postgres>,
         session_id: &Uuid,

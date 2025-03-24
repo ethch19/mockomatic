@@ -1,5 +1,4 @@
 <template>
-  <Toast class="text" />
   <ConfirmDialog/>
   <div class="wizard-container text">
     <div class="main-container flex-column">

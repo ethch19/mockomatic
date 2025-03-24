@@ -17,7 +17,7 @@ export const useTemplateCreationStore = defineStore("templateCreation", {
       this.isDirty = dirty;
     },
     resetForm() {
-      this.form = {
+      this.template = {
         template: {
           name: "",
           feedback: false,

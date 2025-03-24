@@ -13,7 +13,7 @@ pub fn router() -> axum::Router<AppState> {
         .route("/create", post(Session::create))
         .route("/update", post(Session::update))
         .route("/delete", post(Session::delete))
-        .route("/get", post(Session::get))
+        .route("/get", get(Session::get))
         .route("/get-page", get(Session::get_page))
 }
 
@@ -31,6 +31,8 @@ pub struct Session {
     #[serde(default, with = "crate::http::pg_interval")]
     pub intermission_duration: PgInterval,
     pub static_at_end: bool,
+    pub uploaded: bool,
+    pub allocated: bool,
     #[serde(with = "time::serde::iso8601")]
     pub created_at: time::OffsetDateTime
 }
@@ -191,7 +193,7 @@ impl Session {
 
     pub async fn get(
         State(pool): State<sqlx::PgPool>,
-        Json(session): Json<SomethingID>,
+        Query(session): Query<SomethingID>,
     ) -> Result<impl IntoResponse, AppError> {
         let result = sqlx::query_as!(
             Session,
@@ -349,6 +351,7 @@ impl Session {
             return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
         }
 
+        trace!("Delete Session Triggered");
         for session_id in &session.ids {
             let _ = sqlx::query!(
                 r#"

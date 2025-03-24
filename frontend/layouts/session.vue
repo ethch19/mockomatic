@@ -1,27 +1,17 @@
 <template>
   <div class="session-layout text">
-    <Toolbar class="header">
-      <template #start>
-        <img src="/img/long_logo.png" alt="Logo" class="long-logo" />
-      </template>
-      <template #end>
-        <div class="header-right">
-          <Button
-            label="Back to Home"
-            icon="pi pi-arrow-left"
-            class="p-button-text"
-            @click="navigateTo('/')"
-          />
-          <span class="session-info">
-            Session ID: {{ sessionStore.session?.id || "Loading..." }}
-          </span>
-          <span class="session-info">
-            Scheduled: {{ formatDate(sessionStore.session?.scheduled_date) }}
-          </span>
-        </div>
-      </template>
-    </Toolbar>
-    
+    <Toast position="bottom-right" class="text" />
+    <header class="header flex-row">
+      <img src="/img/long_logo.png" alt="Logo" class="long-logo" />
+      <div class="header-right">
+        <Button
+          label="Back to Home"
+          icon="pi pi-arrow-left"
+          variant="text"
+          @click="navigateTo('/')"
+        />
+      </div>
+    </header>
     <div class="content">
       <slot />
     </div>
@@ -29,13 +19,7 @@
 </template>
 
 <script lang="ts" setup>
-import { useRoute, useRouter } from "vue-router";
-import { ref, onMounted } from "vue";
-import { useSessionStore } from "~/stores/session";
-
 const router = useRouter();
-const route = useRoute();
-const sessionStore = useSessionStore();
 
 const navigateTo = (path) => {
   router.push(path);
@@ -44,28 +28,28 @@ const navigateTo = (path) => {
 const formatDate = (dateString) => {
   return dateString ? new Date(dateString).toLocaleDateString() : "N/A";
 };
-
-onMounted(() => {
-  const sessionId = route.params.sessionID;
-  console.log("Session Layout")
-  console.log(sessionId)
-  if (sessionId && (!sessionStore.session || sessionStore.session.id !== sessionId)) {
-    sessionStore.fetchSession(sessionId);
-  }
-});
 </script>
+
+<style>
+.p-toast {
+  z-index: 10001 !important;
+}
+</style>
 
 <style scoped>
 .session-layout {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  padding: 0;
+  margin: 0;
 }
 
 .header {
   background-color: #f8f9fa;
   padding: 1rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  justify-content: space-between;
 }
 
 .long-logo {
@@ -77,7 +61,7 @@ onMounted(() => {
 .header-right {
   display: flex;
   align-items: center;
-  gap: 1.5rem; /* Space between elements */
+  gap: 1.5rem;
 }
 
 .session-info {
@@ -87,6 +71,6 @@ onMounted(() => {
 
 .content {
   flex: 1;
-  padding: 2rem;
+  padding: 1rem;
 }
 </style>

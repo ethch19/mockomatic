@@ -1,8 +1,16 @@
+use axum::{extract::{State, Json, Query}, http::StatusCode, response::IntoResponse, routing::get};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use crate::error::AppError;
 use anyhow::{Context, anyhow};
 use sqlx::Transaction;
+
+use super::{SomethingID, AppState};
+
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/get-slot", get(get_by_slot))
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Run {
@@ -32,7 +40,31 @@ pub enum RunTime {
     PM, // runs that START after 12:00
 }
 
+async fn get_by_slot(
+    State(pool): State<sqlx::PgPool>,
+    Query(slot_id): Query<SomethingID>,
+) -> Result<impl IntoResponse, AppError> {
+    let result = Run::get_all_by_slot(&pool, &slot_id.id).await?;
+    Ok((StatusCode::OK, Json(result)).into_response())
+}
+
 impl Run {
+    pub async fn get_all_by_slot(
+        pool: &sqlx::PgPool,
+        slot_id: &Uuid,
+    ) -> Result<Vec<Run>, AppError> {
+        sqlx::query_as!(
+            Run,
+            r#"
+            SELECT * FROM records.runs WHERE slot_id = $1
+            "#,
+            slot_id,
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(|_| AppError::from(anyhow!("Cannot get slots with slot_id: {}", slot_id)))
+    }
+
     pub async fn get_by_time(
         pool: &sqlx::PgPool,
         slot_id: &Uuid,
@@ -43,7 +75,7 @@ impl Run {
                 sqlx::query_as!(
                     Run,
                     r#"
-                    SELECT * FROM records.runs WHERE slot_id = $1 AND EXTRACT(TIMEZONE_HOUR FROM scheduled_start) < 12
+                    SELECT * FROM records.runs WHERE slot_id = $1 AND EXTRACT(HOUR FROM scheduled_start) < 12
                     "#,
                     slot_id
                 )
@@ -55,7 +87,7 @@ impl Run {
                 sqlx::query_as!(
                     Run,
                     r#"
-                    SELECT * FROM records.runs WHERE slot_id = $1 AND EXTRACT(TIMEZONE_HOUR FROM scheduled_start) > 11
+                    SELECT * FROM records.runs WHERE slot_id = $1 AND EXTRACT(HOUR FROM scheduled_start) > 11
                     "#,
                     slot_id
                 )

@@ -1,3 +1,22 @@
 {
-  "2500044": "2500044-My first shared query.sql"
+  "2500044": "2500044-My first shared query.sql",
+  "3037049": "backend/migrations/20250214165131_init.sql",
+  "3037050": "backend/migrations/20250216142046_user_last_login.sql",
+  "3037051": "backend/migrations/20250216152029_jti.sql",
+  "3037052": "backend/migrations/20250219012047_runs.sql",
+  "3037053": "backend/migrations/20250219150837_date_change.sql",
+  "3037054": "backend/migrations/20250219211827_remove_runs.sql",
+  "3037055": "backend/migrations/20250219214504_readd_runs.sql",
+  "3037056": "backend/migrations/20250220004014_correct_circuit.sql",
+  "3037057": "backend/migrations/20250221134007_candidate_ava.sql",
+  "3037058": "backend/migrations/20250221162502_candidate_slotid.sql",
+  "3037059": "backend/migrations/20250221170439_candidate-slot.sql",
+  "3037060": "backend/migrations/20250302225452_feedback.sql",
+  "3037061": "backend/migrations/20250307173456_slot_run_edit.sql",
+  "3037062": "backend/migrations/20250307180141_candidate_slot.sql",
+  "3037063": "backend/migrations/20250307180300_candidate_avaliability.sql",
+  "3037064": "backend/migrations/20250312155605_candidate_constraint.sql",
+  "3037065": "backend/migrations/20250312172356_candidate_unique.sql",
+  "3037066": "backend/migrations/20250312174000_session_status.sql",
+  "3037067": "backend/migrations/20250313185343_candidate_ava_default.sql"
 }

@@ -1,5 +1,9 @@
 ARG NODE_VERSION=22
 FROM node:${NODE_VERSION}-slim AS base
+LABEL "dev.ethanchang.maintainer"="Ethan Chang"
+LABEL "dev.ethanchang.project"="Mockomatic"
+LABEL version="0.1.0"
+
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable

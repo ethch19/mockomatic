@@ -1,5 +1,10 @@
-FROM rust:1.82.0 AS builder
+FROM rust:1.88.0 AS builder
+LABEL "dev.ethanchang.maintainer"="Ethan Chang"
+LABEL "dev.ethanchang.project"="Mockomatic"
+LABEL version="0.1.0"
+
 WORKDIR /app
+# for highs
 RUN apt-get update && apt-get install -y \
     cmake \
     clang \

@@ -1,19 +1,36 @@
-FROM rust:1.82.0 AS dev
-RUN cargo install cargo-watch
-WORKDIR /app
+FROM rust:1.88.0
+LABEL "dev.ethanchang.maintainer"="Ethan Chang"
+LABEL "dev.ethanchang.project"="Mockomatic"
+LABEL version="0.1.0"
+
+RUN useradd -ms /bin/bash -u 1001 app
+# for highs
 RUN apt-get update && apt-get install -y \
     cmake \
     clang \
     libclang-dev \
     && rm -rf /var/lib/apt/lists/*
-COPY Cargo.toml Cargo.lock ./
-RUN mkdir src && echo "fn main() {}" > src/main.rs
-RUN cargo build
-RUN rm -rf src
+COPY entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/entrypoint.sh
+USER app
+WORKDIR /app_env
+ENV CARGO_HOME=/app_env/.cargo
+ENV PATH="${CARGO_HOME}/bin:${PATH}"
+RUN cargo install --locked bacon
+RUN cargo install sqlx-cli --no-default-features --features native-tls,postgres
+
+COPY --chown=app:app Cargo.toml Cargo.lock ./
+RUN mkdir src && \
+    echo "fn main() {}" > src/main.rs && \
+    cargo build && \
+    rm -rf src
 COPY . .
-RUN useradd -m -r appuser && chown appuser:appuser /app/backend
-USER appuser
+
 ARG PORT=8080
 ENV PORT=$RUST_PORT
 EXPOSE $RUST_PORT
-CMD ["cargo", "watch", "-x", "run"]
+ARG DATABASE_URL
+ENV DATABASE_URL=$DATABASE_URL
+
+ENTRYPOINT ["entrypoint.sh"]
+CMD ["bacon", "--headless", "run-long"]

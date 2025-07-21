@@ -1,5 +1,4 @@
 {
-  "2500044": "2500044-My first shared query.sql",
   "3037049": "backend/migrations/20250214165131_init.sql",
   "3037050": "backend/migrations/20250216142046_user_last_login.sql",
   "3037051": "backend/migrations/20250216152029_jti.sql",

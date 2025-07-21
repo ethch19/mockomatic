@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT * FROM people.candidates WHERE session_id = $1 ORDER BY slot\n        ",
+  "query": "\n                    SELECT * FROM people.candidates WHERE session_id = $1 AND am = TRUE AND female_only = TRUE\n                    ",
   "describe": {
     "columns": [
       {
@@ -45,8 +45,13 @@
       },
       {
         "ordinal": 8,
-        "name": "slot",
-        "type_info": "Bpchar"
+        "name": "am",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 9,
+        "name": "pm",
+        "type_info": "Bool"
       }
     ],
     "parameters": {
@@ -63,8 +68,9 @@
       false,
       true,
       false,
-      true
+      false,
+      false
     ]
   },
-  "hash": "e3187bdaded16aa56e0062bf58f44538d5868f7c1147d5e46d156b58f7040b13"
+  "hash": "c2979619725c2087cbf3cf1bbef7499b2535d6990696f50a1d51623eee058f1a"
 }

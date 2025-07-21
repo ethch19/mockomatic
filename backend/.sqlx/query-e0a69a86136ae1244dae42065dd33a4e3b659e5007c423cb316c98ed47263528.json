@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE people.candidates\n            SET\n                first_name = COALESCE($3, first_name),\n                last_name = COALESCE($4, last_name),\n                shortcode = COALESCE($5, shortcode),\n                female_only = COALESCE($6, female_only),\n                partner_pref = COALESCE($7, partner_pref),\n                checked_in = COALESCE($8, checked_in),\n                am = COALESCE($9, am),\n                pm = COALESCE($10, pm)\n            WHERE id = $1 AND session_id = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Bool",
+        "Text",
+        "Bool",
+        "Bool",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e0a69a86136ae1244dae42065dd33a4e3b659e5007c423cb316c98ed47263528"
+}

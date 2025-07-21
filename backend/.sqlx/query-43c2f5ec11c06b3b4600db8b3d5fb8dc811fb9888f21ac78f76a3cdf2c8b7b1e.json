@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n                INSERT INTO records.stations (session_id, title, index, duration)\n                VALUES ($1, $2, $3, $4)\n                RETURNING *\n                ",
+  "query": "\n            SELECT * FROM records.stations WHERE session_id = $1 AND LOWER(title) != 'rest'\n            ",
   "describe": {
     "columns": [
       {
@@ -31,10 +31,7 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        "Text",
-        "Int2",
-        "Interval"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -45,5 +42,5 @@
       false
     ]
   },
-  "hash": "e76d96c0cd24ebb43e9a2196041c53cf1593c7af37ba4f499f21d9cde4278689"
+  "hash": "43c2f5ec11c06b3b4600db8b3d5fb8dc811fb9888f21ac78f76a3cdf2c8b7b1e"
 }

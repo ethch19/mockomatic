@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n                    SELECT * FROM records.slots WHERE session_id = $1 AND slot_time = $2\n                    ",
+  "query": "\n            INSERT INTO records.slots (session_id, key)\n            VALUES ($1, $2)\n            RETURNING *\n            ",
   "describe": {
     "columns": [
       {
@@ -15,7 +15,7 @@
       },
       {
         "ordinal": 2,
-        "name": "slot_time",
+        "name": "key",
         "type_info": "Bpchar"
       }
     ],
@@ -31,5 +31,5 @@
       false
     ]
   },
-  "hash": "d62f93b003578f03790d77c85563eda2cf78f6fa7cd22550bbd633a3a583af7d"
+  "hash": "e695cbfcca0ec161460982379a9810cec148528b811ad7e5e76fc2439c381ac1"
 }

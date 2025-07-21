@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT * FROM people.candidates WHERE id = $1\n            ",
+  "query": "\n            SELECT * FROM records.circuits WHERE slot_id = $1 AND female_only = $2\n            ",
   "describe": {
     "columns": [
       {
@@ -15,48 +15,54 @@
       },
       {
         "ordinal": 2,
-        "name": "first_name",
-        "type_info": "Text"
+        "name": "slot_id",
+        "type_info": "Uuid"
       },
       {
         "ordinal": 3,
-        "name": "last_name",
-        "type_info": "Text"
+        "name": "key",
+        "type_info": "Bpchar"
       },
       {
         "ordinal": 4,
-        "name": "shortcode",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 5,
         "name": "female_only",
         "type_info": "Bool"
       },
       {
+        "ordinal": 5,
+        "name": "current_rotation",
+        "type_info": "Int2"
+      },
+      {
         "ordinal": 6,
-        "name": "partner_pref",
+        "name": "status",
         "type_info": "Text"
       },
       {
         "ordinal": 7,
-        "name": "checked_in",
+        "name": "intermission",
         "type_info": "Bool"
       },
       {
         "ordinal": 8,
-        "name": "am",
-        "type_info": "Bool"
+        "name": "timer_start",
+        "type_info": "Timestamptz"
       },
       {
         "ordinal": 9,
-        "name": "pm",
+        "name": "timer_end",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "feedback",
         "type_info": "Bool"
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Uuid",
+        "Bool"
       ]
     },
     "nullable": [
@@ -65,12 +71,13 @@
       false,
       false,
       false,
-      false,
       true,
       false,
       false,
+      true,
+      true,
       false
     ]
   },
-  "hash": "6c9e131b60caecf5027fba35304b48cf758ec39ba3ae29de40d521ce22ffc0ef"
+  "hash": "871560f711f199ca727a48af5fef834a52646faf54661b085ff970201da968ca"
 }

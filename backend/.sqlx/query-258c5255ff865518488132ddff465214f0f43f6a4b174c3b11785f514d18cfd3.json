@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO people.candidates (\n                    session_id,\n                    first_name,\n                    last_name,\n                    shortcode,\n                    female_only,\n                    partner_pref,\n                    checked_in\n                ) VALUES ($1, $2, $3, $4, $5, $6, $7)\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Bool",
+        "Text",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "258c5255ff865518488132ddff465214f0f43f6a4b174c3b11785f514d18cfd3"
+}

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT * FROM people.candidates WHERE id = $1\n            ",
+  "query": "\n                    SELECT * FROM people.candidates WHERE session_id = $1 AND pm = TRUE  AND female_only = TRUE\n                    ",
   "describe": {
     "columns": [
       {
@@ -72,5 +72,5 @@
       false
     ]
   },
-  "hash": "6c9e131b60caecf5027fba35304b48cf758ec39ba3ae29de40d521ce22ffc0ef"
+  "hash": "323ac98fdb4906a80f749839cd97c5a0ee3b2015158ce85cbab34f78bf8a72af"
 }

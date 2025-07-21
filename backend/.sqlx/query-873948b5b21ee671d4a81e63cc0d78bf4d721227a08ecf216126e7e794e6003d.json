@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT * FROM people.candidates WHERE id = $1\n            ",
+  "query": "\n            SELECT * FROM people.examiners WHERE session_id = $1 AND female = TRUE\n            ",
   "describe": {
     "columns": [
       {
@@ -30,27 +30,22 @@
       },
       {
         "ordinal": 5,
-        "name": "female_only",
+        "name": "female",
         "type_info": "Bool"
       },
       {
         "ordinal": 6,
-        "name": "partner_pref",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 7,
-        "name": "checked_in",
-        "type_info": "Bool"
-      },
-      {
-        "ordinal": 8,
         "name": "am",
         "type_info": "Bool"
       },
       {
-        "ordinal": 9,
+        "ordinal": 7,
         "name": "pm",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "checked_in",
         "type_info": "Bool"
       }
     ],
@@ -66,11 +61,10 @@
       false,
       false,
       false,
-      true,
       false,
       false,
       false
     ]
   },
-  "hash": "6c9e131b60caecf5027fba35304b48cf758ec39ba3ae29de40d521ce22ffc0ef"
+  "hash": "873948b5b21ee671d4a81e63cc0d78bf4d721227a08ecf216126e7e794e6003d"
 }

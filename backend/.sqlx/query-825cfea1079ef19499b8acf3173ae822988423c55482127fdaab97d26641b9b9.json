@@ -27,6 +27,16 @@
         "ordinal": 4,
         "name": "static_at_end",
         "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "feedback",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "feedback_duration",
+        "type_info": "Interval"
       }
     ],
     "parameters": {
@@ -37,7 +47,9 @@
       false,
       false,
       false,
-      false
+      false,
+      false,
+      true
     ]
   },
   "hash": "825cfea1079ef19499b8acf3173ae822988423c55482127fdaab97d26641b9b9"

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT * FROM records.circuits WHERE slot_id = $1\n            ",
+  "query": "\n            INSERT INTO records.circuits (session_id, slot_id, key, female_only, feedback, intermission)\n            VALUES ($1, $2, $3, $4, $5, $6)\n            RETURNING *\n            ",
   "describe": {
     "columns": [
       {
@@ -61,7 +61,12 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Uuid",
+        "Uuid",
+        "Bpchar",
+        "Bool",
+        "Bool",
+        "Bool"
       ]
     },
     "nullable": [
@@ -78,5 +83,5 @@
       false
     ]
   },
-  "hash": "071cc76bd5c32649d85a663f0d8cb7eaa546e708412a07f642472ce2ab746807"
+  "hash": "eccf633ca554321046f3d03285eb19116b8ba5b9da360e4165cbe02490b2805b"
 }

@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO records.allocations_history (\n                    batch_id, slot_id, circuit_id, station_id, candidate_1, candidate_2, modified_by, auto_gen\n                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ff69ae88ea51f6722d6f0f03968e468ab0e00a0b55329b2aa6e03a69adc51f52"
+}

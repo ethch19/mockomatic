@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE records.sessions\n            SET\n                organisation = COALESCE($3, organisation),\n                scheduled_date = COALESCE($4, scheduled_date),\n                location = COALESCE($5, location),\n                feedback = COALESCE($6, feedback),\n                feedback_duration = COALESCE($7, feedback_duration),\n                intermission_duration = COALESCE($8, intermission_duration),\n                static_at_end = COALESCE($9, static_at_end)\n            WHERE id = $1 AND organiser_id = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Date",
+        "Text",
+        "Bool",
+        "Interval",
+        "Interval",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "de8a9a883b14242066fe07a8ce3f986f779720ef547b37de0777cdf03d89d50e"
+}

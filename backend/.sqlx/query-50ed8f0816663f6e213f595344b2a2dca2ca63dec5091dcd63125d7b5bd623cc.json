@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n                SELECT *\n                FROM records.sessions\n                ORDER BY created_at DESC\n                OFFSET $1 LIMIT $2\n                ",
+  "query": "\n            INSERT INTO records.sessions (organiser_id, organisation, scheduled_date, location, total_stations, feedback, feedback_duration, intermission_duration, static_at_end)\n            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)\n            RETURNING *\n            ",
   "describe": {
     "columns": [
       {
@@ -71,8 +71,15 @@
     ],
     "parameters": {
       "Left": [
-        "Int8",
-        "Int8"
+        "Uuid",
+        "Text",
+        "Date",
+        "Text",
+        "Int2",
+        "Bool",
+        "Interval",
+        "Interval",
+        "Bool"
       ]
     },
     "nullable": [
@@ -91,5 +98,5 @@
       false
     ]
   },
-  "hash": "c51b1fb4062350a0a835c4f24f1cbd7eb76a51ff389c2cb8d574f2a9bfab8170"
+  "hash": "50ed8f0816663f6e213f595344b2a2dca2ca63dec5091dcd63125d7b5bd623cc"
 }

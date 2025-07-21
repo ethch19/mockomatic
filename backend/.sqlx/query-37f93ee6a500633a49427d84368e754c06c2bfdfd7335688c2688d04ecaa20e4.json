@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            INSERT INTO templates.sessions (name, total_stations, intermission_duration, static_at_end)\n            VALUES ($1, $2, $3, $4)\n            RETURNING *\n            ",
+  "query": "\n            INSERT INTO templates.sessions (name, total_stations, feedback, feedback_duration, intermission_duration, static_at_end)\n            VALUES ($1, $2, $3, $4, $5, $6)\n            RETURNING *\n            ",
   "describe": {
     "columns": [
       {
@@ -27,12 +27,24 @@
         "ordinal": 4,
         "name": "static_at_end",
         "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "feedback",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "feedback_duration",
+        "type_info": "Interval"
       }
     ],
     "parameters": {
       "Left": [
         "Text",
         "Int2",
+        "Bool",
+        "Interval",
         "Interval",
         "Bool"
       ]
@@ -42,8 +54,10 @@
       false,
       false,
       false,
-      false
+      false,
+      false,
+      true
     ]
   },
-  "hash": "bffbb236b36f07e34656fd79c4a7d97efff2cb862214324aeb4b190f78b3257d"
+  "hash": "37f93ee6a500633a49427d84368e754c06c2bfdfd7335688c2688d04ecaa20e4"
 }

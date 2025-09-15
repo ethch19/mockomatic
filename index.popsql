@@ -18,5 +18,7 @@
   "3037065": "backend/migrations/20250312172356_candidate_unique.sql",
   "3037066": "backend/migrations/20250312174000_session_status.sql",
   "3037067": "backend/migrations/20250313185343_candidate_ava_default.sql",
-  "3052447": "test-db.sql"
+  "3052447": "test-db.sql",
+  "3096634": "backend/migrations/20250913140312_session_status.sql",
+  "3096635": "backend/migrations/20250913203750_organisation.sql"
 }

@@ -1,0 +1,157 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+:root {
+  --background: #FCFAF8;
+  --foreground: #333333;
+  --card: #FCFAF8;
+  --card-foreground: #333333;
+  --popover: #FCFAF8;
+  --popover-foreground: #333333;
+  --primary: #FF9933;
+  --primary-foreground: #FDFDFD;
+  --secondary: #F7BE85;
+  --secondary-foreground: #FF9933;
+  --muted: #F7BE85;
+  --muted-foreground: #333333;
+  --accent: #F6B604;
+  --accent-foreground: #333333;
+  --destructive: #BB272A;
+  --destructive-foreground: #E32C2F;
+  --border: #E3E2E2;
+  --input: #E3E2E2;
+  --ring: #F1F1F0;
+  --chart-1: #B25174;
+  --chart-2: #66B251;
+  --chart-3: #4257E0;
+  --chart-4: #A569DD;
+  --chart-5: #E4A02B;
+  --radius: 0.625rem;
+  --sidebar: #FDFDFD;
+  --sidebar-foreground: #333333;
+  --sidebar-primary: #FF9933;
+  --sidebar-primary-foreground: #FDFDFD;
+  --sidebar-accent: #F7BE85;
+  --sidebar-accent-foreground: #FF9933;
+  --sidebar-border: #E3E2E2;
+  --sidebar-ring: #F1F1F0;
+  
+  /* custom colours */
+  --background-2: #FDFDFD;
+  --text-1: #333333;
+  --text-2: #AEA7A3;
+  --gray-50: #F9F9F9;
+  --gray-100: #F1F1F0;
+  --gray-200: #E3E2E2;
+  --gray-300: #C8C6C5;
+  --gray-400: #ACABA9;
+  --gray-500: #1D1D1D;
+  --stage-100: #4257E0;
+  --stage-200: #A569DD;
+  --stage-300: #66B251;
+  --stage-400: #B25174;
+  --stage-500: #BB272A;
+  --stage-600: #E4A02B; 
+}
+
+.dark {
+  --background: #0E0D0C;
+  --foreground: #EBE4E0;
+  --card: #0E0D0C;
+  --card-foreground: #EBE4E0;
+  --popover: #0E0D0C;
+  --popover-foreground: #EBE4E0;
+  --primary: #FF9933;
+  --primary-foreground: #181716;
+  --secondary: #FFA54B;
+  --secondary-foreground: #EBE4E0;
+  --muted: #343232;
+  --muted-foreground: #333333;
+  --accent: #4D4545;
+  --accent-foreground: #EBE4E0;
+  --destructive: #BB272A;
+  --destructive-foreground: #E32C2F;
+  --border: #4D4545;
+  --input: #7F7B79;
+  --ring: #4D4545;
+  --chart-1: #B25174;
+  --chart-2: #66B251;
+  --chart-3: #4257E0;
+  --chart-4: #A569DD;
+  --chart-5: #E4A02B;
+  --sidebar: #181716;
+  --sidebar-foreground: #EBE4E0;
+  --sidebar-primary: #FF9933;
+  --sidebar-primary-foreground: #EBE4E0;
+  --sidebar-accent: #181716;
+  --sidebar-accent-foreground: #EBE4E0;
+  --sidebar-border: #181716;
+  --sidebar-ring: #4D4545;
+
+  /* custom colours */
+  --background-2: #181716;
+  --text-1: #EBE4E0;
+  --text-2: #7F7B79;
+  --gray-50: #201E1E;
+  --gray-100: #4D4545;
+  --gray-200: #635A5A;
+  --gray-300: #7E7272;
+  --gray-400: #968C8C;
+  --gray-500: #E4E2E2;
+  --stage-100: #548BE4;
+  --stage-200: #C572FD;
+  --stage-300: #66B251;
+  --stage-400: #B25174;
+  --stage-500: #E32C2F;
+  --stage-600: #E4A02B; 
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}

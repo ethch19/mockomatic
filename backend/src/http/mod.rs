@@ -1,4 +1,12 @@
-use axum::{extract::FromRef, http, middleware::from_fn_with_state, Router};
+use axum::{
+    extract::FromRef,
+    http::{
+        Method, 
+        header::{HeaderValue, HeaderName, ACCEPT, AUTHORIZATION, CONTENT_TYPE}, 
+    },
+    middleware::from_fn_with_state,
+    Router
+};
 use anyhow::Result;
 use axum_extra::extract::cookie::Key;
 use tower_http::{
@@ -8,7 +16,7 @@ use tower_http::{
 use serde::Deserialize;
 use tokio::sync::broadcast;
 
-mod users;
+pub mod users;
 pub mod sessions;
 pub mod slots;
 pub mod stations;
@@ -23,8 +31,9 @@ mod pg_interval;
 mod option_pg_interval;
 mod default;
 mod websocket;
+mod csrf;
 
-use crate::http::users::mid_jwt_auth;
+use crate::http::{users::jwt_auth_middleware, csrf::csrf_auth_middleware};
 
 #[derive(Debug, Deserialize)]
 pub struct SomethingID {
@@ -56,14 +65,15 @@ impl FromRef<AppState> for sqlx::PgPool {
 }
 
 pub fn router_app(db: sqlx::PgPool) -> Router {
-    let secret = dotenvy::var("cookie_secret");
+    let secret = dotenvy::var("cookie_secret"); // needs to be stored in secret manager offsite
+
     let (tx, _) = broadcast::channel(100);
     let app_state = match secret {
         Ok(sec) => AppState { key: Key::from(sec.as_bytes()), db, tx },
         Err(_) => AppState { key: Key::generate(), db, tx },
     };
+
     let v1_routes = Router::new()
-        .nest("/users", users::router())
         .nest("/sessions", sessions::router())
         .nest("/stations", stations::router())
         .nest("/slots", slots::router())
@@ -74,30 +84,34 @@ pub fn router_app(db: sqlx::PgPool) -> Router {
         .nest("/allocations", allocations::router())
         .nest("/templates", templates::router())
         .nest("/files", upload::router())
-        .layer(from_fn_with_state(app_state.clone(), mid_jwt_auth))
+        .nest("/users", users::router()) //l they can login without jwt tokens, perhaps i should implement pre-session auth
+        .layer(from_fn_with_state(app_state.clone(), csrf_auth_middleware))
+        .layer(from_fn_with_state(app_state.clone(), jwt_auth_middleware))
         .nest("/users", users::login_router());
+
     Router::new()
         .nest("/api/v1", v1_routes) //remove /api when deploying
         .with_state(app_state)
         .layer(
             CorsLayer::new()
-                .allow_methods([http::Method::GET, http::Method::POST])
-                .allow_headers([http::header::CONTENT_TYPE, http::header::AUTHORIZATION])
+                .allow_methods([Method::GET, Method::POST])
+                .allow_headers([ACCEPT, CONTENT_TYPE, AUTHORIZATION, HeaderName::from_static("x-csrf-token")])
                 .allow_private_network(true)
                 .allow_credentials(true)
-                .allow_origin(["http://localhost:3000".parse::<http::HeaderValue>().unwrap(),
-                "http://0.0.0.0:8080".parse::<http::HeaderValue>().unwrap(),
-                "http://0.0.0.0:3000".parse::<http::HeaderValue>().unwrap(),
-                "http://localhost:8080".parse::<http::HeaderValue>().unwrap()])
+                .allow_origin(["http://localhost:3000".parse::<HeaderValue>().unwrap(),
+                "http://0.0.0.0:8080".parse::<HeaderValue>().unwrap(),
+                "http://0.0.0.0:3000".parse::<HeaderValue>().unwrap(),
+                "http://localhost:8080".parse::<HeaderValue>().unwrap()])
         )
         .layer(
             TraceLayer::new_for_http()
         )
 }
+        
 
 pub async fn serve(db: sqlx::PgPool) -> Result<()> {
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
     
-    axum::serve(listener, router_app(db)).await;
+    let _ = axum::serve(listener, router_app(db)).await;
     Ok(())
 }

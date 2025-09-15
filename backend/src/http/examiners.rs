@@ -9,7 +9,7 @@ use anyhow::{anyhow, Context};
 
 use crate::error::AppError;
 
-use super::{runs::RunTime, users::AccessClaims, AppState, SomethingID, SomethingMultipleID, allocations::Availability};
+use super::{runs::RunTime, users::{AccessClaims, User}, AppState, SomethingID, SomethingMultipleID, allocations::Availability};
 
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
@@ -89,7 +89,7 @@ async fn create(
     Extension(claim): Extension<AccessClaims>,
     Json(examiner): Json<ExaminerPayload>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !claim.admin {
+    if !User::is_admin(&pool, &claim.id).await? {
         return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
     }
     let result = Examiner::create(&pool, examiner).await?;
@@ -101,7 +101,7 @@ async fn update(
     Extension(claim): Extension<AccessClaims>,
     Json(examiner): Json<ExaminerChange>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !claim.admin {
+    if !User::is_admin(&pool, &claim.id).await? {
         return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
     }
     let result = Examiner::update(pool, examiner).await?;
@@ -141,7 +141,7 @@ async fn delete(
     Extension(claim): Extension<AccessClaims>,
     Json(examiner): Json<SomethingMultipleID>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !claim.admin {
+    if !User::is_admin(&pool, &claim.id).await? {
         return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
     }
     Examiner::delete(pool, examiner.ids).await?;

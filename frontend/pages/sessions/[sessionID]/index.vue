@@ -169,8 +169,8 @@
 
 <script lang="ts" setup>
 import { useSessionStore } from "~/stores/session";
-import { apiFetch } from "~/composables/apiFetch"
-import { formatInterval, formatTimeFromISO } from "~/composables/formatting"
+import { apiFetch } from "~~/composables/apiFetch"
+import { formatInterval, formatTimeFromISO } from "~~/composables/formatting"
 import { useToast } from "primevue/usetoast";
 
 definePageMeta({

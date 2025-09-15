@@ -1,27 +1,54 @@
 import { defineStore } from "pinia"
-import { apiFetch } from "~/composables/apiFetch"
+import { apiFetch } from "~~/composables/apiFetch"
+
+export type AuthBody = {
+    access_token: string;
+    token_type: string;
+    username: string;
+    role: string;
+    organisation: string;
+}
 
 export const useAuthStore = defineStore("auth", {
   state: () => ({
-    accessToken: null,
+    accessToken: null as string | null,
+    token_type: null as string | null,
+    username: null as string | null,
+    role: null as string | null,
+    organisation: null as string | null
   }),
   actions: {
-    setAccessToken(token) {
-      this.accessToken = token
+    setAuth(authBody: AuthBody) {
+      this.accessToken = authBody.access_token
+      this.token_type = authBody.token_type
+      this.username = authBody.username
+      this.role = authBody.role.charAt(0).toUpperCase() + authBody.role.slice(1);
+      this.organisation = authBody.organisation;
     },
-    clearAccessToken() {
+    clearAuth() {
       this.accessToken = null
+      this.token_type = null
+      this.username = null
+      this.role = null
+      this.organisation = null
+    },
+    async logout() {
+        try {
+            const response = await apiFetch("/users/logout", { method: "GET"});
+            this.clearAuth();
+            return true;
+        } catch (error) {
+            this.clearAuth();
+            return false;
+        }
     },
     async refreshTokens() {
       try {
-        const response = await apiFetch("/users/refresh", {
-          method: "GET",
-        });
-        this.setAccessToken(response.access_token);
+        const response: AuthBody = await apiFetch("/users/refresh", { method: "GET" });
+        this.setAuth(response);
         return true;
       } catch (error) {
-        console.error("Token refresh failed:", error);
-        this.clearAccessToken();
+        this.clearAuth();
         return false;
       }
     },

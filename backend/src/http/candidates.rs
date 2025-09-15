@@ -3,7 +3,7 @@ use axum::{extract::{Json, State, Query}, http::StatusCode, response::IntoRespon
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use super::{users::AccessClaims, AppState, SomethingID, SomethingMultipleID, allocations::Availability, runs::RunTime};
-use crate::error::AppError;
+use crate::{error::AppError, http::users::User};
 
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
@@ -78,7 +78,7 @@ async fn create(
     Extension(claim): Extension<AccessClaims>,
     Json(candidate): Json<CandidatePayload>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !claim.admin {
+    if !User::is_admin(&pool, &claim.id).await? {
         return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
     }
     let result = Candidate::create(&pool, candidate).await?;
@@ -87,7 +87,6 @@ async fn create(
 
 async fn get_session_all(
     State(pool): State<sqlx::PgPool>,
-    Extension(claim): Extension<AccessClaims>,
     session_id: Query<SomethingID>,
 ) -> Result<impl IntoResponse, AppError> {
     let result = Candidate::get_all_by_session(&pool, &session_id.0.id).await?;
@@ -99,7 +98,7 @@ async fn delete(
     Extension(claim): Extension<AccessClaims>,
     Json(candidates): Json<SomethingMultipleID>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !claim.admin {
+    if !User::is_admin(&pool, &claim.id).await? {
         return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
     }
     Candidate::delete(pool, candidates.ids).await?;
@@ -331,7 +330,7 @@ impl Candidate {
         Extension(claim): Extension<AccessClaims>,
         Json(candidate): Json<CandidateChange>,
     ) -> Result<impl IntoResponse, AppError> {
-        if !claim.admin {
+        if !User::is_admin(&pool, &claim.id).await? {
             return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
         }
         let _ = sqlx::query!(

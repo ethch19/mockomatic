@@ -1,5 +1,5 @@
 import { defineStore } from "pinia"
-import { apiFetch } from "~/composables/apiFetch"
+import { apiFetch } from "~~/composables/apiFetch"
 import Session from "~/layouts/session.vue";
 
 export const useSessionStore = defineStore("session", {

@@ -2,7 +2,7 @@ use anyhow::{Context, anyhow};
 use axum::{extract::{Json, Query, State}, http::StatusCode, response::IntoResponse, routing::{get, post}, Extension};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use super::{users::AccessClaims, AppState, SomethingID, SomethingMultipleID, circuits::Circuit, runs::Run, slots::{Slot, SlotPayload}, stations::{Station, StationPayload}};
+use super::{users::{AccessClaims, User}, AppState, SomethingID, SomethingMultipleID, circuits::Circuit, runs::Run, slots::{Slot, SlotPayload}, stations::{Station, StationPayload}};
 use crate::error::AppError;
 use sqlx::postgres::types::PgInterval;
 use tracing::{instrument, trace};
@@ -15,13 +15,14 @@ pub fn router() -> axum::Router<AppState> {
         .route("/delete", post(Session::delete))
         .route("/get", get(Session::get))
         .route("/get-page", get(Session::get_page))
+        .route("/get-all", get(Session::get_all))
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Session {
     pub id: Uuid,
     pub organiser_id: Uuid,
-    pub organisation: String,
+    pub organisation_id: Uuid,
     pub scheduled_date: time::Date,
     pub location: String,
     pub total_stations: i16,
@@ -31,15 +32,13 @@ pub struct Session {
     #[serde(default, with = "crate::http::pg_interval")]
     pub intermission_duration: PgInterval,
     pub static_at_end: bool,
-    pub uploaded: bool,
-    pub allocated: bool,
+    pub status: String,
     #[serde(with = "time::serde::iso8601")]
     pub created_at: time::OffsetDateTime
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SessionPayload {
-    pub organisation: String,
     pub scheduled_date: time::Date,
     pub location: String,
     pub feedback: bool,
@@ -47,14 +46,15 @@ pub struct SessionPayload {
     pub feedback_duration: Option<PgInterval>,
     #[serde(default, with = "crate::http::pg_interval")]
     pub intermission_duration: PgInterval,
-    pub static_at_end: bool
+    pub static_at_end: bool,
+    pub status: String
 }
 
 #[derive(Debug, Deserialize)]
 pub struct SessionChange {
     pub id: Uuid,
     pub organiser_id: Uuid,
-    pub organisation: Option<String>,
+    pub organisation_id: Uuid,
     pub scheduled_date: Option<time::Date>,
     pub location: Option<String>,
     pub feedback: Option<bool>,
@@ -104,7 +104,7 @@ impl Session {
         Extension(claim): Extension<AccessClaims>,
         Json(req): Json<CreateSessionPayload>,
     ) -> Result<impl IntoResponse, AppError> {
-        if !claim.admin {
+        if !User::is_admin(&pool, &claim.id).await? {
             return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
         }
 
@@ -150,12 +150,12 @@ impl Session {
         let session_result = sqlx::query_as!(
             Session,
             r#"
-            INSERT INTO records.sessions (organiser_id, organisation, scheduled_date, location, total_stations, feedback, feedback_duration, intermission_duration, static_at_end)
+            INSERT INTO records.sessions (organiser_id, organisation_id, scheduled_date, location, total_stations, feedback, feedback_duration, intermission_duration, static_at_end)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING *
             "#,
             &claim.id,
-            session_payload.organisation,
+            &claim.organisation_id,
             session_payload.scheduled_date,
             session_payload.location,
             &total_stations,
@@ -209,6 +209,7 @@ impl Session {
         Ok((StatusCode::OK, Json(result)).into_response())
     }
 
+    // server side pagination, no longer used
     #[instrument(name = "get_page", level = "TRACE")]
     pub async fn get_page(
         State(pool): State<sqlx::PgPool>,
@@ -292,12 +293,30 @@ impl Session {
         Ok((StatusCode::OK, Json(PaginationResponse { sessions, total })).into_response())
     }
 
+    pub async fn get_all( // users can only get sessions in their organisation
+        State(pool): State<sqlx::PgPool>,
+        Extension(claim): Extension<AccessClaims>,
+    ) -> Result<impl IntoResponse, AppError> {
+        let sessions = sqlx::query_as!(
+            Session,
+            r#"
+            SELECT * FROM records.sessions WHERE organisation_id = $1
+            "#,
+            &claim.organisation_id,
+        )
+        .fetch_all(&pool)
+        .await
+        .with_context(|| format!("Cannot get all sessions by organisation"))?;
+
+        Ok((StatusCode::OK, Json(sessions)).into_response())
+    }
+
     pub async fn update(
         State(pool): State<sqlx::PgPool>,
         Extension(claim): Extension<AccessClaims>,
         Json(session): Json<SessionChange>,
     ) -> Result<impl IntoResponse, AppError> {
-        if !claim.admin {
+        if !User::is_admin(&pool, &claim.id).await? {
             return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
         }
 
@@ -316,7 +335,7 @@ impl Session {
             r#"
             UPDATE records.sessions
             SET
-                organisation = COALESCE($3, organisation),
+                organisation_id = COALESCE($3, organisation_id),
                 scheduled_date = COALESCE($4, scheduled_date),
                 location = COALESCE($5, location),
                 feedback = COALESCE($6, feedback),
@@ -327,7 +346,7 @@ impl Session {
             "#,
             session.id,
             session.organiser_id,
-            session.organisation,
+            session.organisation_id,
             session.scheduled_date,
             session.location,
             session.feedback,
@@ -347,7 +366,7 @@ impl Session {
         Extension(claim): Extension<AccessClaims>,
         Json(session): Json<SomethingMultipleID>,
     ) -> Result<impl IntoResponse, AppError> {
-        if !claim.admin {
+        if !User::is_admin(&pool, &claim.id).await? {
             return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
         }
 

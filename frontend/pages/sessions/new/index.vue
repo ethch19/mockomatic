@@ -26,7 +26,7 @@
 
 <script lang="ts" setup>
 import { useSessionCreationStore } from "~/stores/sessionCreation";
-import { apiFetch } from "~/composables/apiFetch"
+import { apiFetch } from "~~/composables/apiFetch"
 import { useToast } from "primevue/usetoast";
 
 definePageMeta({

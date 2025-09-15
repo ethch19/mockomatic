@@ -1,9 +1,8 @@
 use anyhow::{Context, anyhow};
 use axum::{extract::{Json, State}, http::StatusCode, response::IntoResponse, routing::{get, post}, Extension};
 use serde::{Deserialize, Serialize};
-use tower_sessions::session;
 use uuid::Uuid;
-use super::{users::AccessClaims, AppState, SomethingID, SomethingMultipleID};
+use super::{users::{AccessClaims, User}, AppState, SomethingID, SomethingMultipleID};
 use crate::error::AppError;
 use sqlx::postgres::types::PgInterval;
 use tracing::instrument;
@@ -117,7 +116,7 @@ impl TemplateSession {
         Extension(claim): Extension<AccessClaims>,
         Json(req): Json<CreateTemplatePayload>,
     ) -> Result<impl IntoResponse, AppError> { // validate that if static_at_end is on, there should only be 1 station that has different times than others
-        if !claim.admin {
+        if !User::is_admin(&pool, &claim.id).await? {
             return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
         }
         req.validate().with_context(|| "Incorrect formatting")?;
@@ -282,7 +281,7 @@ impl TemplateSession {
         Extension(claim): Extension<AccessClaims>,
         Json(session): Json<TemplateSessionChange>,
     ) -> Result<impl IntoResponse, AppError> {
-        if !claim.admin {
+        if !User::is_admin(&pool, &claim.id).await? {
             return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
         }
         session.validate().with_context(|| "Incorrect formatting")?;
@@ -328,7 +327,7 @@ impl TemplateSession {
         Extension(claim): Extension<AccessClaims>,
         Json(session): Json<SomethingMultipleID>,
     ) -> Result<impl IntoResponse, AppError> {
-        if !claim.admin {
+        if !User::is_admin(&pool, &claim.id).await? {
             return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
         }
 

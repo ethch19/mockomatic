@@ -10,7 +10,7 @@
 </template>
 
 <script lang="ts" setup>
-import { apiFetch } from "~/composables/apiFetch"
+import { apiFetch } from "~~/composables/apiFetch"
 import { useToast } from "primevue/usetoast";
 import { useConfirm } from "primevue/useconfirm";
 

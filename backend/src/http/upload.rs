@@ -10,7 +10,7 @@ use std::io::Cursor;
 
 use crate::error::AppError;
 
-use super::{users::AccessClaims, AppState, SomethingID, examiners::ExaminerExcel, candidates::CandidateExcel};
+use super::{users::{AccessClaims, User}, AppState, SomethingID, examiners::ExaminerExcel, candidates::CandidateExcel};
 
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
@@ -90,7 +90,7 @@ async fn upload_xlsx(
     session_data: Query<SomethingID>,
     mut multipart: Multipart,
 ) -> Result<impl IntoResponse, AppError> {
-    if !claim.admin {
+    if !User::is_admin(&pool, &claim.id).await? {
         return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
     }
 
@@ -281,7 +281,7 @@ async fn upload_xlsx(
         .map_err(|err| anyhow!("Failed to insert candidate from excel: {}", err))?;
     }
 
-    sqlx::query!("UPDATE records.sessions SET uploaded = true WHERE id = $1", &session_id).execute(&mut *transaction).await.map_err(|err| anyhow!("Failed to change session upload status: {}", err))?;
+    sqlx::query!("UPDATE records.sessions SET status = 'prep' WHERE id = $1", &session_id).execute(&mut *transaction).await.map_err(|err| anyhow!("Failed to change session upload status: {}", err))?;
     transaction.commit().await.with_context(|| format!("Rolled back successful. Transaction failed to commit"))?;
 
     Ok(StatusCode::CREATED.into_response())

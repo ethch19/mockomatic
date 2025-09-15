@@ -17,18 +17,15 @@ export const useTemplateCreationStore = defineStore("templateCreation", {
       this.isDirty = dirty;
     },
     resetForm() {
-      this.template = {
-        template: {
-          name: "",
-          feedback: false,
-          feedback_duration: 0,
-          intermission_duration: 0,
-          static_at_end: false,
-        },
-        stations: [] as StationMinutesPayload[],
-        isDirty: false,
-      };
-      this.isDirty = false;
+        this.template = {
+            name: "",
+            feedback: false,
+            feedback_duration: 0,
+            intermission_duration: 0,
+            static_at_end: false,
+        };
+        this.stations = [] as StationMinutesPayload[];
+        this.isDirty = false;
     },
     addStation(title = "", minutes = 1) {
       const nextIndex = this.stations.length;
@@ -53,6 +50,7 @@ export const useTemplateCreationStore = defineStore("templateCreation", {
       }
       newStations.forEach((station, index) => station.index = index);
       this.stations = newStations;
+      this.setDirty();
     },
     onRowReorder(event) {
       const newStations = [...this.stations];

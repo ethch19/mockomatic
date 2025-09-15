@@ -1,88 +1,139 @@
 <template>
-  <Form class="login-form flex-column text p-fluid" v-slot="$form" :resolver="resolver" :initialValues="initialValues" @submit="handleLogin">
-    <h2 class="subtitle">Sign In</h2>
-    <div>
-      <FloatLabel variant="on">
-        <InputText :class="{ 'p-invalid': error }" :style="{ width: '100%' }" :inputStyle="{ width: '100%', 'padding': '1rem' }" id="username" v-model="username" type="text"/>
-        <label for="username">Username</label>
-      </FloatLabel>
+    <div class="flex-column justify-center content-center">
+        <ColorScheme placeholder="..." tag="span">
+            <img v-if="$colorMode.value === 'light'" src="/public/img/long_logo.png" class="long-logo" alt="Logo">
+            <img v-if="$colorMode.value === 'dark'" src="/public/img/long_logo_dark.png" class="long-logo" alt="Logo">
+        </ColorScheme>
+        <form class="login-form flex-column text p-fluid" @submit="handleLogin">
+            <h2 class="subtitle">Sign In</h2>
+            <FormField v-slot="{ componentField }" name="username">
+                <FormItem>
+                    <FormLabel>Username</FormLabel>
+                    <FormControl>
+                        <Input type="text" v-bind="componentField" ></Input>
+                    </FormControl>
+                    <FormMessage />
+                </FormItem>
+            </FormField>
+            <FormField v-slot="{ componentField }" name="password">
+                <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                        <Input type="password" v-bind="componentField" ></Input>
+                    </FormControl>
+                    <FormMessage />
+                </FormItem>
+            </FormField>
+            <Button type="submit" variant="default" class="login-btn flex-row">
+                <iconify-icon v-show="loading" icon="svg-spinners:180-ring" height="1rem" ></iconify-icon>
+                <iconify-icon v-show="!loading" icon="lucide:log-in" height="1rem" ></iconify-icon>
+                Login
+            </Button>
+        </form>
+        <Button variant="ghost" size="icon" class="flex-column colour-mode-btn" @click="changeColourMode" :aria-label="`Switch to ${$colorMode.value === 'light' ? 'dark' : 'light'} mode`">
+            <iconify-icon v-if="$colorMode.value === 'light'" icon="lucide:sun" height="1.75rem" width="1.75rem" style="color: var(--foreground)"></iconify-icon>
+            <iconify-icon v-if="$colorMode.value === 'dark'" icon="lucide:moon-star" height="1.75rem" width="1.75rem" style="color: var(--foreground)"></iconify-icon>
+        </Button>
     </div>
-    <div>
-      <FloatLabel variant="on">
-        <Password :class="{ 'p-invalid': error }" :style="{ width: '100%' }" :inputStyle="{ width: '100%', 'padding': '1rem' }" id="password" v-model="password" :feedback="false"/>
-        <label for="password">Password</label>
-      </FloatLabel>
-    </div>
-    <Button type="submit" severity="secondary" label="Login" />
-    <p v-if="error" class="error-message">{{ error }}</p>
-  </Form>
 </template>
 
 <script lang="ts" setup>
 definePageMeta({
-  layout: "default",
+    layout: false,
 })
 
-import { ref } from "vue"
-import { useRouter } from "vue-router"
-import { useAuthStore } from "~/stores/auth"
-import { apiFetch } from "~/composables/apiFetch"
+import type  { AuthBody } from "~/stores/auth";
+import * as z from "zod";
+import { useForm } from 'vee-validate';
+import { toTypedSchema } from '@vee-validate/zod';
+import { toast } from "vue-sonner";
+import { useAuthStore } from "~/stores/auth";
+import "iconify-icon";
 
-const username = ref("")
-const password = ref("")
 const loading = ref(false)
-const error = ref(null)
 const router = useRouter()
-const authStore = useAuthStore()
+const colorMode = useColorMode()
 
-async function handleLogin() {
-  loading.value = true
-  error.value = null
-  try {
-    const data = await apiFetch("/users/login", {
-      method: "POST",
-      body: JSON.stringify({ username: username.value, password: password.value }),
-      headers: {
-        "origin": "http://localhost:3000",
-      }
-    })
-    if (data.access_token && data.token_type === "Bearer ") {
-      authStore.setAccessToken(data.access_token)
-      router.push("/")
+const { values, handleSubmit} = useForm({
+    validationSchema: toTypedSchema(
+        z.object({
+            username: z.string().nonempty("Username cannot be empty"),
+            password: z.string().nonempty("Password cannot be empty"),
+        }),
+    ),
+});
+
+const changeColourMode = () => {
+    if (colorMode.value === "light") {
+        colorMode.value = "dark"
     } else {
-      error.value = "Login failed: Invalid response from server"
-      console.error("Unexpected response:", data)
+        colorMode.value = "light"
     }
-  } catch (err) {
-    console.error("Login error:", err)
-    console.log("Error response:", err.response)
-    if (err.response) {
-      const errorMessage = typeof err.response._data === "string" ? err.response._data : err.response._data?.detail || "Unknown server error"
-      error.value = `Login failed: ${errorMessage}`
-    } else {
-      error.value = `Login failed: ${err.message || "Network error"}`
-    }
-  } finally {
-    loading.value = false
-  }
+    console.log("Colour mode value: {}", colorMode.value);
+    console.log("Colour mode preference: {}", colorMode.preference);
 }
+
+const handleLogin = handleSubmit(async values => {
+    loading.value = true
+    try {
+        const authStore = useAuthStore();
+        const data: AuthBody = await apiFetch("/users/login", {
+            method: "POST",
+            body: JSON.stringify({ username: values.username, password: values.password }),
+            headers: {
+                "origin": "http://localhost:3000",
+            }
+        })
+        authStore.setAuth(data);
+        router.push("/");
+    } catch (err) {
+        toast.error(err.data);
+    } finally {
+        loading.value = false
+    }
+})
 </script>
 
 <style scoped>
+.long-logo {
+    display: inline-flex;
+    align-self: center;
+    min-width: 15vw;
+    width: 25rem;
+    max-height: 100%;
+}
+
 .login-form {
-  height:fit-content;
-  min-width: 20vw;
-  max-width: 30vw;
-  background-color: var(--p-surface-50);
-  box-shadow: 0 4px 8px var(--p-surface-300);
-  border-radius: 1rem;
-  align-items: stretch;
-  margin: auto;
-  gap: 1rem;
-  padding: 2rem;
+    min-height: 30vh;
+    min-width: 20vw;
+    width: 25rem;
+    background-color: var(--background-2);
+    border-radius: 1rem;
+    justify-content: space-between;
+    align-self: center;
+    align-items: stretch;
+    gap: 1.5rem;
+    padding: 3rem;
 }
 
 .subtitle {
-  margin: 0 0 1rem 0;
+    margin: 0 0 1rem 0;
+}
+
+.login-btn {
+    width: 40%;
+    min-width: 8rem;
+    margin-top: 1.5rem;
+    align-self: center;
+}
+
+.colour-mode-btn {
+    position: absolute;
+    top: 2rem;
+    right: 2rem;
+}
+
+.colour-mode-btn:hover {
+    background-color: var(--border);
 }
 </style>

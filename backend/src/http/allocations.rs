@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::Transaction;
 use uuid::Uuid;
 use super::{
-    candidates::Candidate, circuits::Circuit, examiners::Examiner, runs::{Run, RunTime}, slots::Slot, stations::Station, users::AccessClaims, AppState, SomethingID};
+    candidates::Candidate, circuits::Circuit, examiners::Examiner, runs::{Run, RunTime}, slots::Slot, stations::Station, users::{AccessClaims, User}, AppState, SomethingID};
 use crate::{
     allocation_algo::{allocate_by_slot, allocate_by_time, SlotAllocation, TimeAllocation}, error::AppError
 };
@@ -539,7 +539,7 @@ async fn gen_new( // for static/initial allocation
     Extension(claim): Extension<AccessClaims>,
     session: Query<SomethingID> // session id
 ) -> Result<impl IntoResponse, AppError> {
-    if !claim.admin {
+    if !User::is_admin(&pool, &claim.id).await? {
         return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
     }
     let session_id = session.0.id;

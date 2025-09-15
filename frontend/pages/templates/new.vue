@@ -1,5 +1,5 @@
 <template>
-  <ConfirmPopup class="text" /> 
+  <ConfirmDialog class="text" /> 
   <div class="wizard-container text flex-column">
     <h3 class="subhead">Create new template</h3>
     <div class="flex-row field-group">
@@ -61,15 +61,15 @@
       </DataTable>
     </div>
     <div class="flex-row wizard-actions">
-      <Button label="Back" icon="pi pi-arrow-left" @click="returnMain" />
+      <Button label="Back" icon="pi pi-arrow-left" @click="cancel()" />
       <Button label="Create" type="submit" @click="submitForm"/>
     </div>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { apiFetch } from "~/composables/apiFetch";
-import { useTemplateCreationStore } from "~/stores/templateCreation";
+import { apiFetch } from "~~/composables/apiFetch";
+import { useTemplateCreationStore } from "~~/stores/templateCreation";
 import { useToast } from "primevue/usetoast";
 import { useConfirm } from "primevue/useconfirm";
 
@@ -137,16 +137,26 @@ const confirmDelete = (event) => {
   });
 }
 
-const returnMain = () => {
-  router.push("/");
-};
-
 const cancel = () => {
   if (templateStore.isDirty) {
-    if (confirm("You have unsaved changes. Are you sure you want to cancel and lose progress?")) {
-      templateStore.resetForm();
-      router.push("/");
-    }
+    confirm.require({
+        message: "You have unsaved changes. Are you sure you want to cancel and lose progress?",
+        header: "Confirm",
+        icon: "pi pi-exclamation-triangle",
+        rejectProps: {
+          label: "Cancel",
+          severity: "secondary",
+          outlined: true
+        },
+        acceptProps: {
+          label: "Continue",
+          severity: "danger"
+        },
+        accept: () => {
+            templateStore.resetForm();
+            router.push("/");
+        }
+    });
   } else {
     templateStore.resetForm();
     router.push("/");
@@ -163,7 +173,7 @@ onBeforeMount(() => {
 
 onUnmounted(() => {
   window.onbeforeunload = null;
-  if (!router.currentRoute.value.path.startsWith("/templats/new")) {
+  if (!router.currentRoute.value.path.startsWith("/templates/new")) {
     templateStore.resetForm();
   }
 });

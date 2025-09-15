@@ -2,13 +2,13 @@
 name = "backend"
 version = "0.1.0"
 edition = "2021"
+default-run = "backend"
 
 [dependencies]
 anyhow = "1.0.95"
 argon2 = "0.5.3"
 axum = { version = "0.8.1", features = ["macros", "ws", "multipart"] }
 axum-extra = { version = "0.10.0", features = ["typed-header", "cookie-private"] }
-axum_csrf = "0.11.0"
 calamine = "0.26.1"
 cookie = "0.18.1"
 dotenvy = "0.15.7"
@@ -33,3 +33,11 @@ tracing-subscriber = { version = "0.3.19", features = ["chrono"] }
 uuid = { version = "1.13.1", features = ["serde", "v4", "v7"] }
 serde_json = "1.0.139"
 validator = { version = "0.20.0", features = ["derive"] }
+clap = { version = "4.5.41", features = ["derive"] }
+comfy-table = "7.1.4"
+testcontainers = "0.24.0"
+testcontainers-modules = { version = "0.12.1", features = ["postgres"] }
+hmac = "0.12.1"
+rand_chacha = { version="0.9.0", features = ["os_rng"] }
+sha2 = "0.10.9"
+hex = "0.4.3"

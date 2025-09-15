@@ -1,18 +1,22 @@
-export const formatInterval = (interval) => {
-    if (!interval || typeof interval !== "object") return 0;
-
-    const { months = 0, days = 0, microseconds = 0 } = interval;
-
-    const daysFromMonths = months * 30;
-    const totalDays = daysFromMonths + days;
-    const minutesFromDays = totalDays * 24 * 60;
-    const minutesFromMicroseconds = microseconds / (1_000_000 * 60);
-
-    return Math.round(minutesFromDays + minutesFromMicroseconds) + " min"; // in minutes
+export type PgInterval = {
+    months: number;
+    days: number;
+    microseconds: number;
 };
 
-export const formatDate = (date) => {
-     return date ? new Date(date).toLocaleDateString() : "N/A";
+export const formatInterval = (interval: PgInterval) => {
+  if (!interval) return 0;
+
+  const daysFromMonths = interval.months * 30;
+  const totalDays = daysFromMonths + interval.days;
+  const minutesFromDays = totalDays * 24 * 60;
+  const minutesFromMicroseconds = interval.microseconds / (1_000_000 * 60);
+
+  return Math.round(minutesFromDays + minutesFromMicroseconds); // in minutes
+};
+
+export const formatDate = (date: string) => {
+  return new Date(date).toLocaleDateString();
 };
 
 // ISO 8601 to HH:MM

@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import Slots from "~/pages/sessions/new/slots.vue";
-import { apiFetch } from "~/composables/apiFetch"
+import { apiFetch } from "~~/composables/apiFetch"
 
 export const useSessionCreationStore = defineStore("sessionCreation", {
   state: () => ({
@@ -244,8 +244,9 @@ export const useSessionCreationStore = defineStore("sessionCreation", {
         },
         stations: template.stations.map(({ id, template_id, ...station }) => station),
       };
-      this.intermissionSeconds = this.form.session.intermission_duration.microseconds / 1_000_000 ;
-      this.feedbackSeconds = this.form.session.feedback_duration.microseconds / 1_000_000;
+      console.log(this.form);
+      this.intermissionSeconds = this.form.session.intermission_duration != null ? this.form.session.intermission_duration.microseconds / 1_000_000  : 0;
+      this.feedbackSeconds = this.form.session.feedback_duration != null ? this.form.session.feedback_duration.microseconds / 1_000_000 : 0;
       this.stationsMinutes = template.stations.map(({ id, template_id, duration, ...station }) => {
         const newStation = {
           ...station,

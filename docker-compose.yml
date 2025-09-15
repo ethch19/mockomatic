@@ -4,6 +4,8 @@ services:
     frontend:
         image: ethch19/mockomatic_frontend:latest
         container_name: nuxt_frontend
+        env_file:
+            - .env
         environment:
             - NUXT_PORT=${NUXT_PORT:-3000}
         expose:
@@ -14,11 +16,14 @@ services:
     backend:
         image: ethch19/mockomatic_backend:latest
         container_name: rust_backend
+        env_file:
+            - .env
         environment:
             - RUST_PORT=${RUST_PORT:-8080}
             - DATABASE_URL=${DATABASE_URL:?error}
             - ACCESS_JWT_SECRET=${ACCESS_JWT_SECRET:?error}
             - REFRESH_JWT_SECRET=${REFRESH_JWT_SECRET:?error}
+            - CSRF_SECRET=${CSRF_SECRET:?error}
         expose:
             - "8080"
         depends_on:
@@ -33,6 +38,8 @@ services:
         container_name: postgres_db
         expose:
             - "5432"
+        env_file:
+          - .env
         environment:
             - POSTGRES_USER=${POSTGRES_USER:?error}
             - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?error}
@@ -70,6 +77,8 @@ services:
             - nginx
         networks:
             - app-network
+        env_file:
+            - .env
         environment:
             - TUNNEL_TOKEN=${TUNNEL_TOKEN:?error}  # .env file or Github Actions
         profiles:

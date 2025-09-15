@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /app/target/release/backend .
 RUN useradd -m -r appuser && chown appuser:appuser /app/backend
 USER appuser
-ARG PORT=8080
+ARG RUST_PORT=8080
 ENV PORT=$RUST_PORT
-EXPOSE $RUST_PORT 
+EXPOSE $PORT 
 CMD ["./backend"]

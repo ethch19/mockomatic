@@ -7,9 +7,9 @@ services:
         env_file:
             - .env
         environment:
-            - NUXT_PORT=${NUXT_PORT:-3000}
+            - PORT=${NUXT_PORT:-3000}
         expose:
-            - "3000"
+            - "${NUXT_PORT:-3000}:${PORT:-3000}"
         networks:
             - app-network
 
@@ -19,13 +19,13 @@ services:
         env_file:
             - .env
         environment:
-            - RUST_PORT=${RUST_PORT:-8080}
+            - PORT=${RUST_PORT:-8080}
             - DATABASE_URL=${DATABASE_URL:?error}
             - ACCESS_JWT_SECRET=${ACCESS_JWT_SECRET:?error}
             - REFRESH_JWT_SECRET=${REFRESH_JWT_SECRET:?error}
             - CSRF_SECRET=${CSRF_SECRET:?error}
         expose:
-            - "8080"
+            - "${RUST_PORT:-8080}:${PORT:-8080}"
         depends_on:
             db:
                 condition: service_started

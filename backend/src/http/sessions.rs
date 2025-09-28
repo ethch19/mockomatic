@@ -6,6 +6,9 @@ use super::{users::{AccessClaims, User}, AppState, SomethingID, SomethingMultipl
 use crate::error::AppError;
 use sqlx::postgres::types::PgInterval;
 use tracing::{instrument, trace};
+use std::ops::{Add, Sub, AddAssign, SubAssign, Mul};
+use std::convert::From;
+use validator::Validate;
 
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
@@ -47,7 +50,17 @@ pub struct SessionPayload {
     #[serde(default, with = "crate::http::pg_interval")]
     pub intermission_duration: PgInterval,
     pub static_at_end: bool,
-    pub status: String
+    // organiser_id and organisation_id are taken from the token claims
+    // status default to 'new'
+}
+
+#[derive(Debug, Serialize, Deserialize, Validate)]
+pub struct CreateSessionPayload {
+    pub session: SessionPayload,
+    #[validate(length(min = 1, max = 256, message = "Must have between 1 and 256 stations"))]
+    pub stations: Vec<StationPayload>,
+    #[validate(length(min = 1, max = 26, message = "Must have between 1 and 26 slots"), nested)]
+    pub slots: Vec<SlotPayload> // runs and circuits inside slots
 }
 
 #[derive(Debug, Deserialize)]
@@ -66,14 +79,6 @@ pub struct SessionChange {
     pub static_at_end: Option<bool>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct CreateSessionPayload {
-    pub session: SessionPayload,
-    pub stations: Vec<StationPayload>,
-    pub slots: Vec<SlotPayload> // runs and circuits inside slots
-}
-
-
 #[derive(Debug, Deserialize)]
 pub struct PaginationParams {
     pub first: i64, // Offset (starting position)
@@ -88,6 +93,75 @@ pub struct PaginationParams {
 struct PaginationResponse {
     sessions: Vec<Session>,
     total: i64,
+}
+
+#[derive(Debug)]
+pub struct PgIntervalWrapper(PgInterval); //tuple struct wrapper
+
+impl Add for PgIntervalWrapper {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        Self (PgInterval {
+            months: self.0.months + other.0.months,
+            days: self.0.days + other.0.days,
+            microseconds: self.0.microseconds + other.0.microseconds,
+        })
+    }
+}
+
+impl AddAssign for PgIntervalWrapper {
+    fn add_assign(&mut self, other: Self) {
+        *self = Self {
+            0: PgInterval {
+                months: self.0.months + other.0.months,
+                days: self.0.days + other.0.days,
+                microseconds: self.0.microseconds + other.0.microseconds,
+            }
+        };
+    }
+}
+
+impl Sub for PgIntervalWrapper {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self::Output {
+        Self (PgInterval {
+            months: self.0.months - other.0.months,
+            days: self.0.days - other.0.days,
+            microseconds: self.0.microseconds - other.0.microseconds,
+        })
+    }
+}
+
+impl SubAssign for PgIntervalWrapper {
+    fn sub_assign(&mut self, other: Self) {
+        *self = Self {
+            0: PgInterval {
+                months: self.0.months - other.0.months,
+                days: self.0.days - other.0.days,
+                microseconds: self.0.microseconds - other.0.microseconds,
+            }
+        };
+    }
+}
+
+impl Mul<i16> for PgIntervalWrapper {
+    type Output = Self;
+
+    fn mul(self, rhs: i16) -> Self {
+        Self(PgInterval {
+            months: self.0.months * rhs as i32,
+            days: self.0.days * rhs as i32,
+            microseconds: self.0.microseconds * rhs as i64,
+        })
+    }
+}
+
+impl From<PgInterval> for PgIntervalWrapper {
+    fn from(interval: PgInterval) -> Self {
+        PgIntervalWrapper(interval)
+    }
 }
 
 async fn test_function(
@@ -108,15 +182,17 @@ impl Session {
             return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
         }
 
+        req.validate().map_err(|e| AppError::from(anyhow!("Invalid payload: {}", e)))?;
+
         let session_payload = req.session;
         let total_stations = req.stations.len() as i16;
 
         let mut transaction = pool.begin().await.with_context(|| "Unable to create a transaction in database")?;
 
-        let mut runtime_sec: i64 = (session_payload.intermission_duration.microseconds / 1000000) * total_stations as i64; //division of microseconds trunucates forward
+        let mut runtime_duration = PgIntervalWrapper::from(session_payload.intermission_duration) * total_stations;
         if session_payload.feedback {
-            if let Some(x) = &session_payload.feedback_duration {
-                runtime_sec +=  (x.microseconds / 1000000) * total_stations as i64;
+            if let Some(x) = session_payload.feedback_duration {
+                runtime_duration += PgIntervalWrapper::from(x) * total_stations;
             } else {
                 return Err(AppError::from(anyhow!("Feedback set to true but feedback duration missing")));
             }
@@ -125,27 +201,26 @@ impl Session {
                 return Err(AppError::from(anyhow!("Feedback duration is given but feedback is set to false")));
             }
         }
-        if let Some(sta_duration) = req.stations.first() {
-            for i in 0..req.stations.len() {
-                if i == req.stations.len() - 1 && session_payload.static_at_end {
+        if let Some(st_duration) = req.stations.first() {
+            for i in 0..req.stations.len() { // station duration checker
+                if i == req.stations.len() - 1 && session_payload.static_at_end { // check if the last station is different only if static at end is true
                     break;
                 }
-                if req.stations[i].duration != sta_duration.duration {
-                    return Err(AppError::from(anyhow!("Stations have different durations")));
+                if req.stations[i].duration != st_duration.duration { // check all stations have the same duration
+                    return Err(AppError::from(anyhow!("Stations have different durations. Try turning on static at end.")));
                 }
             }
-            runtime_sec += (sta_duration.duration.microseconds / 1000000) * (total_stations as i64 - 1);
+            runtime_duration += PgIntervalWrapper::from(st_duration.duration) * (total_stations - 1);
             if let Some(last_station) = req.stations.last() {
-                runtime_sec += last_station.duration.microseconds / 1000000
+                runtime_duration += PgIntervalWrapper::from(last_station.duration); // incase static at end is true
             } else {
-                return Err(AppError::from(anyhow!("Failed to add the duration of the last station")));
+                return Err(AppError::from(anyhow!("No stations have been provided")));
             }
         } else {
-            return Err(AppError::from(anyhow!("Failed to get the first station")));
+            return Err(AppError::from(anyhow!("No stations have been provided")));
         }
 
-        let runtime_dur = time::Duration::new(runtime_sec, 0);
-        trace!("Total runtime for 1 slot is {}", runtime_sec);
+        trace!("Total runtime for 1x run is {:?}", runtime_duration);
 
         let session_result = sqlx::query_as!(
             Session,
@@ -171,22 +246,22 @@ impl Session {
             Station::create_tx(&mut transaction, &session_result.id, station).await?;
         }
 
-        for slot in &req.slots {
-            let slot_result = Slot::create_tx(&mut transaction, &session_result.id, slot).await?;
+        let slot_keys: &[char] = &('A'..='Z').collect::<Vec<char>>()[..req.slots.len()];
+        trace!("Slot keys generated: {:?}", slot_keys);
+        for (slot, key) in req.slots.iter().zip(slot_keys) {
+            let slot_result = Slot::create_tx(&mut transaction, &session_result.id, key.to_string()).await?;
 
             for run in &slot.runs {
-                if let Some(run_endtime) = run.scheduled_start.checked_add(runtime_dur) {
-                    Run::create_tx(&mut transaction, &slot_result.id, run, run_endtime).await?;
-                } else {
-                    return Err(AppError::from(anyhow!("Failed to create run's scheduled end")));
-                }
+                Run::create_tx(&mut transaction, &slot_result.id, run, &runtime_duration.0).await?;
             }
-            for circuit in &slot.circuits {
-                Circuit::create_tx(&mut transaction, &session_result.id, &slot_result.id, circuit).await?;
+
+            let circuit_keys: &[char] = &('A'..='Z').collect::<Vec<char>>()[..slot.circuits.len()];
+            for (circuit, key) in slot.circuits.iter().zip(circuit_keys) {
+                Circuit::create_tx(&mut transaction, &session_result.id, &slot_result.id, circuit, key.to_string()).await?;
             }
         }
 
-        transaction.commit().await.with_context(|| format!("Rolled back successful. Transaction failed to commit"))?;
+        transaction.commit().await.with_context(|| format!("Transaction failed to commit. Rolled back successful."))?;
         
         Ok((StatusCode::CREATED, Json(session_result)).into_response())
     }

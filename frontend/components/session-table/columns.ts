@@ -5,23 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox'
 import { formatInterval, formatDate } from '@/composables/formatting';
 import "iconify-icon";
+import type { ISession } from '@/utils/types';
 
-export interface Session {
-    id: string;
-    organiser_id: string;
-    organisation: string;
-    scheduled_date: string;
-    location: string;
-    total_stations: number;
-    feedback: boolean;
-    feedback_duration: PgInterval;
-    intermission_duration: PgInterval;
-    static_at_end: boolean;
-    status: "new" | "prep" | "ready" | "pending" | "running" | "completed";
-    created_at: string;
-};
-
-export const columns: ColumnDef<Session>[] = [
+export const columns: ColumnDef<ISession>[] = [
     {
         id: "select",
         header: ({ table }) => h(Checkbox, {

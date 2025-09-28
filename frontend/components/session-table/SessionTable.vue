@@ -57,7 +57,7 @@
             >
                 Next
             </Button>
-            <Input class="h-full w-min min-w-[2.5rem] max-w-[3.5rem]" type="page" :disabled="!(table.getPageCount > 1)" placeholder="1" v-bind="currentPage" @keydown="pagechange"/>
+            <Input class="h-full w-min min-w-[2.5rem] max-w-[3.5rem]" type="page" :disabled="!(table.getPageCount() > 1)" placeholder="1" v-model="currentPage" ref="pageInput" @keydown="pagechange"/>
             <div class="flex items-center space-x-2 h-full">
                 <p class="text-sm font-medium text-(--text-2)">
                 Sessions per page
@@ -103,32 +103,33 @@ const props = defineProps<{
 
 const sorting = ref<SortingState>([])
 const rowSelection = ref({})
-const currentPage = ref(1)
+const currentPage = defineModel<string>("1")
+const pageInput = ref<HTMLInputElement | null>(null)
 
 const pagechange = (event: KeyboardEvent) => {
   if (event.key === "Enter") {
-    const pageIndex = currentPage.value - 1;
+    const pageIndex = Number(currentPage.value) - 1;
     if (!isNaN(pageIndex) && pageIndex >= 0 && pageIndex < table.getPageCount()) {
         table.setPageIndex(pageIndex)
-        currentPage.value = pageIndex + 1
+        currentPage.value = String(pageIndex + 1)
     } else {
-        currentPage.value = table.getState().pagination.pageIndex + 1
+        currentPage.value = String(table.getState().pagination.pageIndex + 1)
     }
-    document.activeElement = null
+    pageInput.value?.blur()
   }
 }
 
 const table = useVueTable({
-  get data() { return props.data },
-  get columns() { return props.columns },
-  getCoreRowModel: getCoreRowModel(),
-  getPaginationRowModel: getPaginationRowModel(),
-  getSortedRowModel: getSortedRowModel(),
-  onSortingChange: updaterOrValue => valueUpdater(updaterOrValue, sorting),
-  onRowSelectionChange: updaterOrValue => valueUpdater(updaterOrValue, rowSelection),
-  state: {
-    get sorting() { return sorting.value },
-    get rowSelection() { return rowSelection.value },
-  },
+    get data() { return props.data },
+    get columns() { return props.columns },
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onSortingChange: updaterOrValue => valueUpdater(updaterOrValue, sorting),
+    onRowSelectionChange: updaterOrValue => valueUpdater(updaterOrValue, rowSelection),
+    state: {
+        get sorting() { return sorting.value },
+        get rowSelection() { return rowSelection.value },
+    },
 })
 </script>

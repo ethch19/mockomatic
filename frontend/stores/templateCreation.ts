@@ -1,116 +1,42 @@
-import { defineStore } from "pinia";
-
 export const useTemplateCreationStore = defineStore("templateCreation", {
-  state: () => ({
-    template: {
-      name: "",
-      feedback: false,
-      feedback_duration: 0,
-      intermission_duration: 0,
-      static_at_end: false,
-    },
-    stations: [] as StationMinutesPayload[],
-    isDirty: false,
-  }),
-  actions: {
-    setDirty(dirty = true) {
-      this.isDirty = dirty;
-    },
-    resetForm() {
-        this.template = {
-            name: "",
-            feedback: false,
-            feedback_duration: 0,
-            intermission_duration: 0,
-            static_at_end: false,
-        };
-        this.stations = [] as StationMinutesPayload[];
-        this.isDirty = false;
-    },
-    addStation(title = "", minutes = 1) {
-      const nextIndex = this.stations.length;
-      this.stations.push({
-        title,
-        index: nextIndex,
-        duration: minutes,
-      });
-      this.setDirty();
-    },
-    removeStations(selected_stations) {
-      if (selected_stations.length == this.stations.length) {
-        this.stations = [] as StationMinutesPayload[];
-        return;
-      }
-      const newStations = [...this.stations];
-      for (let i = 0; i < selected_stations.length; i++) {
-        const index = newStations.indexOf(selected_stations[i]);
-        if (index > -1) {
-          newStations.splice(index, 1);
-        }
-      }
-      newStations.forEach((station, index) => station.index = index);
-      this.stations = newStations;
-      this.setDirty();
-    },
-    onRowReorder(event) {
-      const newStations = [...this.stations];
-      newStations.splice(event.dragIndex, 1);
-      newStations.splice(event.dropIndex, 0, this.stations[event.dragIndex]);
-      newStations.forEach((station, index) => station.index = index);
-      this.stations = newStations;
-      this.setDirty();
-    },
-    formatDuration() {
-      if (feedback) {
-        return {
-          ...this.template,
-          feedback_duration: {
-            months: 0,
-            days: 0,
-            microseconds: this.template.feedback_duration * 1_000_000,
-          },
-          intermission_duration: {
-            months: 0,
-            days: 0,
-            microseconds: this.template.intermission_duration * 1_000_000,
-          },
-        }
-      }
-      return {
-        ...this.template,
-        intermission_duration: {
-          months: 0,
-          days: 0,
-          microseconds: this.template.intermission_duration * 1_000_000,
+    state: () => ({
+        payload: {
+            session: {
+                name: "",
+                feedback: false,
+                feedback_duration: null,
+                intermission_duration: { months: 0, days: 0, microseconds: 0 },
+                static_at_end: false,
+            } as TemplateSessionPayload,
+            stations: [] as TemplateStationPayload[],
         },
-      }
+        isDirty: false,
+    }),
+    actions: {
+        setDirty(dirty = true) {
+            this.isDirty = dirty;
+        },
+        resetForm() {
+            this.payload = {
+                session: {
+                    name: "",
+                    feedback: false,
+                    feedback_duration: null,
+                    intermission_duration: { months: 0, days: 0, microseconds: 0 },
+                    static_at_end: false,
+                } as TemplateSessionPayload,
+                stations: [] as TemplateStationPayload[],
+            }
+            this.isDirty = false;
+        },
+        addStation(title = "", seconds = 60) {
+            const nextIndex = this.payload.stations.length;
+            this.payload.stations.push({
+                title,
+                index: nextIndex,
+                duration: { months: 0, days: 0, microseconds: seconds * 1_000_000 },
+            });
+            this.setDirty();
+        },
     },
-    formatStations() {
-      let stations = [];
-      for (let i = 0; i < this.stations.length; ++i) {
-        const e = this.stations[i];
-        stations.push({
-          ...e,
-          duration: {
-            months: 0,
-            days: 0,
-            microseconds: e.duration * 60 * 1_000_000,
-          }
-        });
-      }
-      return stations;
-    },
-  },
 });
-
-interface StationMinutesPayload {
-  title: string;
-  index: number;
-  duration: number;
-}
-
-interface StationPayload {
-  title: string;
-  index: number;
-  duration: { months: 0, days: 0, microseconds: number };
-}

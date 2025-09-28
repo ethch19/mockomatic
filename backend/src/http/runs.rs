@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use crate::error::AppError;
 use anyhow::{Context, anyhow};
-use sqlx::Transaction;
+use sqlx::{postgres::types::PgInterval, Transaction};
 
 use super::{SomethingID, AppState};
 
@@ -32,6 +32,8 @@ pub struct RunPayload {
     pub flip_allocation: bool,
     #[serde(with = "time::serde::iso8601")]
     pub scheduled_start: time::OffsetDateTime,
+    // scheduled_end calculated on creation
+    // timers only for runtime
 }
 
 #[derive(Debug)]
@@ -102,23 +104,24 @@ impl Run {
         tx: &mut Transaction<'static, sqlx::Postgres>,
         slot_id: &Uuid,
         payload: &RunPayload,
-        scheduled_end: time::OffsetDateTime,
+        runtime: &PgInterval,
     ) -> Result<(), AppError> {
         sqlx::query_as!(
             Run,
             r#"
             INSERT INTO records.runs (slot_id, flip_allocation, scheduled_start, scheduled_end)
-            VALUES ($1, $2, $3, $4)
+            VALUES ($1, $2, $3, $3::timestamptz + $4::interval)
             RETURNING *
             "#,
             slot_id,
             payload.flip_allocation,
             payload.scheduled_start,
-            scheduled_end,
+            runtime,
         )
         .fetch_one(&mut **tx)
         .await
         .with_context(|| format!("Failed to create run from transaction"))?;
+
         Ok(())
     }
 }

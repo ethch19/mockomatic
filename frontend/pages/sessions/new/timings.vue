@@ -21,18 +21,18 @@
                 </StepperItem>
             </Stepper>
         </div>
-        <StationCreationTable
+        <!-- <StationCreationTable
             class="self-center max-w-md w-[30rem] my-auto"
             :columns="columns"
             v-model:data="stations"
             @update-station="handleUpdateStation"
-        />
+        /> -->
         <div class="flex-row justify-between">
-            <Button @click="navigate('/sessions/new')">
+            <Button @click="navigate('/sessions/new/stations')">
                 <iconify-icon icon="lucide:chevron-left" width="24" height="24"></iconify-icon>
                 Previous
             </Button>
-            <Button @click="navigate('/sessions/new/timings')">
+            <Button @click="navigate('/sessions/new/review')">
                 Next
                 <iconify-icon icon="lucide:chevron-right" width="24" height="24"></iconify-icon>
             </Button>
@@ -57,30 +57,24 @@
 <script lang="ts" setup>
 import { useSessionCreationStore } from "~/stores/sessionCreation";
 import { columns } from "~/components/station-creation-table/columns";
-import StationCreationTable from "~/components/station-creation-table/StationCreationTable.vue";
-import type { StationPayload } from "~/utils/types";
+import type { SlotPayload } from "~/utils/types";
 
 const sessionStore = useSessionCreationStore();
 const router = useRouter();
 const loading = ref(false);
 const { payload } = storeToRefs(sessionStore);
-const stations = computed(() => payload.value.stations);
+const slots = computed(() => payload.value.slots);
 const alert_open = ref(false);
-
-watch(stations, (newStations) => {
-  console.log('✅ The computed `stations` prop has updated!', newStations);
-  console.log(sessionStore.payload.stations)
-}, { deep: true });
 
 const navigate = (path: string) => {
     return navigateTo(path);
 };
 
-function handleUpdateStation(rowIndex: number, columnId: string, value: any) {
-    sessionStore.updateStation(rowIndex, columnId, value);
-    // https://github.com/TanStack/table/pull/5687#issuecomment-2281067245
-    // data is shadowRef, must mutate full data
-}
+// function handleUpdateStation(rowIndex: number, columnId: string, value: any) {
+//     sessionStore.updateStation(rowIndex, columnId, value);
+//     // https://github.com/TanStack/table/pull/5687#issuecomment-2281067245
+//     // data is shadowRef, must mutate full data
+// }
 
 const templateSelected = (event) => {
   sessionStore.applyTemplate(event);

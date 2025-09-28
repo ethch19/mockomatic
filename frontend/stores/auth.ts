@@ -1,14 +1,3 @@
-import { defineStore } from "pinia"
-import { apiFetch } from "~~/composables/apiFetch"
-
-export type AuthBody = {
-    access_token: string;
-    token_type: string;
-    username: string;
-    role: string;
-    organisation: string;
-}
-
 export const useAuthStore = defineStore("auth", {
   state: () => ({
     accessToken: null as string | null,

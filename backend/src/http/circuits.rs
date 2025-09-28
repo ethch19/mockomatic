@@ -17,7 +17,7 @@ pub struct Circuit {
     pub id: Uuid,
     pub session_id: Uuid,
     pub slot_id: Uuid,
-    pub key: String,
+    pub key: String, // A-Z
     pub female_only: bool,
     pub current_rotation: Option<i16>,
     pub status: String,
@@ -31,7 +31,6 @@ pub struct Circuit {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CircuitPayload {
-    pub key: String, // A-Z
     pub female_only: bool
 }
 
@@ -82,6 +81,7 @@ impl Circuit {
         session_id: &Uuid,
         slot_id: &Uuid,
         payload: &CircuitPayload,
+        key: String,
     ) -> Result<Circuit, AppError> {
         sqlx::query_as!(
             Circuit,
@@ -92,7 +92,7 @@ impl Circuit {
             "#,
             session_id,
             slot_id,
-            payload.key,
+            key,
             payload.female_only,
             false,
             false)

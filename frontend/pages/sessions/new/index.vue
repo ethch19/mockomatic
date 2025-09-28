@@ -1,149 +1,145 @@
 <template>
-  <div class="wizard-container text">
-    <div class="main-container flex-column">
-      <h2>Create New Session</h2>
-      <Card class="session-form">
-        <template #title>Use Template</template>
-        <template #content>
-          <div class="form-section flex-row">
-            <Listbox v-model="selectedTemplate" :options="session_templates" optionLabel="name" checkmark @update:modelValue="templateSelected($event); sessionStore.setDirty" fluid>
-              <template #option="slotProps">
-                {{ slotProps.option.name }}
-              </template>
-            </Listbox>
-          </div>
-        </template>
-        <template #footer>
-          <div class="wizard-actions">
-            <Button label="Next" icon="pi pi-arrow-right" @click="nextStep" />
-            <Button label="Cancel" icon="pi pi-times" severity="secondary" @click="cancel" />
-          </div>
-        </template>
-      </Card>
+    <div class="flex-column py-[1rem] px-[3rem] text h-full">
+        <h2 class="subtitle">Create Session</h2>
+        <div>
+            <Stepper>
+                <StepperItem :step=1>
+                    <StepperTitle>Session Details</StepperTitle>
+                    <StepperSeparator />
+                </StepperItem>
+                <StepperItem :step=2>
+                    <StepperTitle>Stations</StepperTitle>
+                    <StepperSeparator />
+                </StepperItem>
+                <StepperItem :step=3>
+                    <StepperTitle>Timings</StepperTitle>
+                    <StepperSeparator />
+                </StepperItem>
+                <StepperItem :step=4>
+                    <StepperTitle>Summary</StepperTitle>
+                    <StepperSeparator />
+                </StepperItem>
+            </Stepper>
+        </div>
+        <div class="flex-column self-center max-w-md w-[20rem] my-auto border-1 rounded-md border-(border-muted) gap-6 p-5">
+            <div class="flex-column gap-2">
+                <Label for="scheduled-date">Scheduled Date:</Label>
+                <Popover>
+                    <PopoverTrigger as-child>
+                        <Button
+                            variant="outline"
+                            :class="cn(
+                            'justify-start text-left font-normal',
+                            !value && 'text-muted-foreground',
+                            )"
+                        >
+                            <iconify-icon icon="lucide:calendar" width="24" height="24"></iconify-icon>
+                            {{ sessionStore.payload.session.scheduled_date ? df.format(sessionStore.payload.session.scheduled_date.toDate(getLocalTimeZone())) : "Pick a date" }}
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent class="w-auto p-0">
+                        <Calendar v-model="sessionStore.payload.session.scheduled_date" initial-focus />
+                    </PopoverContent>
+                </Popover>
+            </div>
+            <div class="flex-column gap-2">
+                <Label for="int-duration">Intermission Duration:</Label>
+                <Input id="int-duration" type="number" v-ref="intDuration" placeholder="Duration (seconds)"/>
+            </div>
+            <div class="flex-column gap-2">
+                <Label for="location">Location:</Label>
+                <Input id="location" type="text" v-model="sessionStore.payload.session.location"/>
+            </div>
+            <div class="flex-row justify-between">
+                <div class="flex-column gap-2">
+                    <Label for="feedback">Feedback:</Label>
+                    <Switch id="feedback" v-model="sessionStore.payload.session.feedback"/>
+                </div>
+                <div class="flex-column gap-2" v-if="sessionStore.payload.session.feedback">
+                    <Label for="feed-duration">Feedback Duration:</Label>
+                    <Input id="feed-duration" type="number" v-ref="feedDuration" placeholder="Duration (seconds)"/>
+                </div>
+            </div>
+        </div>
+        <div class="flex-row justify-end">
+            <Button @click="navigate('/sessions/new/stations')">
+                Next
+                <iconify-icon icon="lucide:chevron-right" width="24" height="24"></iconify-icon>
+            </Button>
+        </div>
+        <AlertDialog v-model:open="alert_open">
+            <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>You have unsaved changes</AlertDialogTitle>
+                <AlertDialogDescription>
+                This action cannot be undone. Are you sure you want to cancel and lose progress?
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction>Continue</AlertDialogAction>
+            </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     </div>
-  </div>
 </template>
 
 <script lang="ts" setup>
 import { useSessionCreationStore } from "~/stores/sessionCreation";
 import { apiFetch } from "~~/composables/apiFetch"
-import { useToast } from "primevue/usetoast";
+import { toast } from "vue-sonner";
+import { DateFormatter, getLocalTimeZone } from "@internationalized/date"
+import { cn } from "~/lib/utils"
 
-definePageMeta({
-  layout: "default",
-});
-
-const selectedTemplate = ref();
 const session_templates = ref([]);
 const sessionStore = useSessionCreationStore();
-const toast = useToast();
 const router = useRouter();
+const alert_open = ref(false);
+
+const intDuration = ref<number | null>(null);
+const feedDuration = ref<number | null>(null);
+
+const df = new DateFormatter("en-GB", {
+  dateStyle: "full",
+});
 
 const templateSelected = (event) => {
-  sessionStore.applyTemplate(event);
-  toast.add({ severity: "info", summary: "Confirmed", detail: "Template applied", life: 3000 });
-}
+    sessionStore.applyTemplate(event);
+    // toast.success("Template applied");
+};
 
-const nextStep = () => {
-  router.push("/sessions/new/config");
+const navigate = (path: string) => {
+    return navigateTo(path);
+};
+
+const return_home = () => {
+    sessionStore.resetpayload();
+    return navigateTo("/");
 };
 
 const cancel = () => {
-  if (sessionStore.isDirty) {
-    if (confirm("You have unsaved changes. Are you sure you want to cancel and lose progress?")) {
-      sessionStore.resetForm();
-      router.push("/");
+    if (sessionStore.isDirty) {
+        alert_open.value = true;
+    } else {
+        return return_home();
     }
-  } else {
-    sessionStore.resetForm();
-    router.push("/");
-  }
 };
 
-onMounted(async () => {
-  try {
-    const response = await apiFetch("/templates/get-all", {
-      method: "GET",
-    });
-    session_templates.value = response;
-    console.log(response);
-  } catch (error) {
-    console.error("GET templates error:", error);
-  }
-});
-
-onBeforeMount(() => {
-  window.onbeforeunload = () => {
-    if (sessionStore.isDirty) {
-      return "You have unsaved changes. Are you sure you want to leave?";
+onBeforeMount(async () => {
+    window.onbeforeunload = () => {
+        if (sessionStore.isDirty) {
+            return "You have unsaved changes. Are you sure you want to leave?";
+        }
+    };
+    if (!sessionStore.fetchedTemplate) {
+        await sessionStore.fetchTemplates();
     }
-  };
 });
 
 onUnmounted(() => {
-  window.onbeforeunload = null;
-  if (!router.currentRoute.value.path.startsWith("/sessions/new")) {
-    sessionStore.resetForm();
-  }
+    window.onbeforeunload = null;
+    if (!router.currentRoute.value.path.startsWith("/sessions/new")) {
+        sessionStore.resetpayload();
+    }
 });
 </script>
-
-<style scoped>
-.wizard-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 2rem;
-  width: 100%;
-}
-
-.main-container {
-  width: 50%;
-}
-
-.session-form {
-  width: 100%;
-}
-
-.form-section {
-  flex-wrap: wrap;
-  gap: 1rem;
-  justify-content: space-between;
-  align-items: flex-start;
-  align-content: flex-start;
-}
-
-.duration-input {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.wizard-actions {
-  display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
-}
-
-.toggle {
-  gap: 1rem;
-  justify-content: center;
-  align-items: center;
-  align-self: center;
-}
-
-.toggle-group {
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.duration-field {
-  width: 5rem;
-}
-
-.p-inputgroup {
-  min-width: 45%;
-  max-width: 48%;
-  width: auto;
-}
-</style>

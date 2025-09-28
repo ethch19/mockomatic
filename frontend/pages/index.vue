@@ -20,16 +20,16 @@
 
 <script lang="ts" setup>
 import { apiFetch } from "~~/composables/apiFetch"
-import type { Session } from "~/components/session-table/columns";
+import type { ISession } from "~/utils/types";
 import { columns } from "~/components/session-table/columns";
 import SessionTable from "~/components/session-table/SessionTable.vue";
 import { toast } from "vue-sonner";
 
-const data = ref<Session[]>([]);
+const data = ref<ISession[]>([]);
 const loading = ref(false);
 const router = useRouter();
 
-const loadSessions: Promise<Session[]> = async () => {
+const loadSessions: Promise<ISession[]> = async () => {
     if (loading.value) return;
     loading.value = true;
     try {

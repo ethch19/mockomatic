@@ -1,3 +1,7 @@
+import { string } from "zod";
+import { Time } from "@internationalized/date"
+import type { DateValue } from "@internationalized/date"
+
 export type AuthBody = {
     access_token: string;
     token_type: string;
@@ -10,13 +14,13 @@ export type PgInterval = {
     months: number;
     days: number;
     microseconds: number;
-};
+}
 
 export interface ISession {
     id: string;
     organiser_id: string;
     organisation_id: string;
-    scheduled_date: string;
+    scheduled_date: DateValue;
     location: string;
     total_stations: number;
     feedback: boolean;
@@ -25,7 +29,12 @@ export interface ISession {
     static_at_end: boolean;
     status: string; // "new" | "prep" | "ready" | "pending" | "running" | "completed"
     created_at: string;
-};
+}
+
+export interface ISessionInterval {
+    name: string;
+    duration: PgInterval | false;
+}
 
 export type SessionPayload = {
     scheduled_date: DateValue,
@@ -60,10 +69,21 @@ export type CircuitPayload = {
     female_only: boolean;
 }
 
+export interface IRunPayload {
+    flip_allocation: boolean;
+    scheduled_start: Time;
+    scheduled_end: Time; // scheduled_end calculated on backend, removed when api calling
+}
+
 export type RunPayload = {
     flip_allocation: boolean;
-    scheduled_start: string;
-    scheduled_end: string; // scheduled_end calculated on backend, removed when api calling
+    scheduled_start: Time;
+    scheduled_end: Time; // scheduled_end calculated on backend, removed when api calling
+}
+
+export interface ISlotPayload {
+    runs: RunPayload[];
+    circuits: CircuitPayload[];
 }
 
 export type SlotPayload = {

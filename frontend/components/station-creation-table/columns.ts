@@ -3,7 +3,7 @@ import type { ColumnDef } from '@tanstack/vue-table';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
-import { formatInterval } from '@/composables/formatting';
+import { formatInterval, formatIntervalFromString, normalizeMinuteSeconds } from '@/composables/formatting';
 import "iconify-icon";
 import type { IStationPayload, PgInterval } from '@/utils/types';
 
@@ -64,18 +64,34 @@ export const columns: ColumnDef<IStationPayload>[] = [
     },
     {
         accessorKey: "duration",
-        header: () => h('div', { class: 'text-left' }, "Duration (min)"),
+        header: () => h('div', { class: 'text-left' }, "Duration (MM:SS)"),
         cell: ({ row, table}) => {
             const duration: PgInterval = row.getValue("duration");
-            const duration_min = formatInterval(duration);
-            const duration_str = duration_min != null ? `${duration_min}` : "0";
+            const duration_formatted = formatInterval(duration);
             return h(Input, {
-                type: 'number',
                 class: 'text-left font-medium',
-                modelValue: duration_str,
-                'onUpdate:modelValue': (value) => {
-                    const new_duration: PgInterval = { months: 0, days: 0, microseconds: Number(value) * 60_000_000, }
-                    table.options.meta?.updateData?.(row.index, 'duration', new_duration);
+                modelValue: duration_formatted,
+                onBlur: (event) => {
+                    const value = (event.target as HTMLInputElement).value;
+                    const new_value = normalizeMinuteSeconds(value);
+                    if (new_value) {
+                        const new_duration = formatIntervalFromString(new_value);
+                        table.options.meta?.updateData?.(row.index, 'duration', new_duration);
+                    } else {
+                        table.options.meta?.updateData?.(row.index, 'duration', duration);
+                    }
+                },
+                onKeydown: (event: KeyboardEvent) => {
+                    if (event.key != "Enter") return;
+                    const value = (event.target as HTMLInputElement).value;
+                    const new_value = normalizeMinuteSeconds(value);
+                    if (new_value) {
+                        const new_duration = formatIntervalFromString(new_value);
+                        table.options.meta?.updateData?.(row.index, 'duration', new_duration);
+                    } else {
+                        table.options.meta?.updateData?.(row.index, 'duration', duration);
+                    }
+                    (event.target as HTMLInputElement).blur()
                 },
             });
         },

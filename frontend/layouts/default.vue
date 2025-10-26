@@ -24,11 +24,11 @@
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                     <DropdownMenuItem class="text" @click="navigate('/account')">
-                        <iconify-icon class="text-(--foreground)" icon="lucide:settings" width="24" height="24"></iconify-icon>
+                        <iconify-icon class="text-foreground" icon="lucide:settings" width="24" height="24"></iconify-icon>
                         Account Settings
                     </DropdownMenuItem>
                     <DropdownMenuItem class="text" @click="logout()">
-                        <iconify-icon class="text-(--foreground)" icon="lucide:log-out" width="24" height="24"></iconify-icon>
+                        <iconify-icon class="text-foreground" icon="lucide:log-out" width="24" height="24"></iconify-icon>
                         Logout
                     </DropdownMenuItem>
                 </DropdownMenuContent>

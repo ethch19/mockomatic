@@ -251,6 +251,7 @@ impl Session {
         for (slot, key) in req.slots.iter().zip(slot_keys) {
             let slot_result = Slot::create_tx(&mut transaction, &session_result.id, key.to_string()).await?;
 
+            // REFACTOR: CHECK WHETHER RUNS HAVE THE CORRECT START + END TIME, WHETHER IT OVERLAPS
             for run in &slot.runs {
                 Run::create_tx(&mut transaction, &slot_result.id, run, &runtime_duration.0).await?;
             }

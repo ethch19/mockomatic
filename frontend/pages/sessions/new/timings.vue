@@ -1,32 +1,10 @@
 <template>
-    <div class="flex-column py-[1rem] px-[3rem] text h-full">
+    <div class="flex-column py-4 px-12 text h-full">
         <h2 class="subtitle">Create Session</h2>
-        <div>
-            <Stepper>
-                <StepperItem :step=1>
-                    <StepperTitle>Session Details</StepperTitle>
-                    <StepperSeparator />
-                </StepperItem>
-                <StepperItem :step=2>
-                    <StepperTitle>Stations</StepperTitle>
-                    <StepperSeparator />
-                </StepperItem>
-                <StepperItem :step=3>
-                    <StepperTitle>Timings</StepperTitle>
-                    <StepperSeparator />
-                </StepperItem>
-                <StepperItem :step=4>
-                    <StepperTitle>Summary</StepperTitle>
-                    <StepperSeparator />
-                </StepperItem>
-            </Stepper>
-        </div>
-        <!-- <StationCreationTable
-            class="self-center max-w-md w-[30rem] my-auto"
-            :columns="columns"
-            v-model:data="stations"
-            @update-station="handleUpdateStation"
-        /> -->
+        <ProgressBar class="py-5" :start_step=2 :items="sessionStore.session_stepper" />
+        <SlotCreationTable
+            class="self-center max-w-md w-120 my-auto" :columns="slotColumns" :sub_columns="runColumns"
+        />
         <div class="flex-row justify-between">
             <Button @click="navigate('/sessions/new/stations')">
                 <iconify-icon icon="lucide:chevron-left" width="24" height="24"></iconify-icon>
@@ -56,30 +34,23 @@
 
 <script lang="ts" setup>
 import { useSessionCreationStore } from "~/stores/sessionCreation";
-import { columns } from "~/components/station-creation-table/columns";
-import type { SlotPayload } from "~/utils/types";
+import SlotCreationTable from "~/components/slot-creation-table/SlotCreationTable.vue"
+import { columns as slotColumns } from "~/components/slot-creation-table/columns.ts";
+import { columns as runColumns } from "~/components/slot-creation-table/columns-runs.ts";
 
-const sessionStore = useSessionCreationStore();
 const router = useRouter();
-const loading = ref(false);
-const { payload } = storeToRefs(sessionStore);
-const slots = computed(() => payload.value.slots);
+const sessionStore = useSessionCreationStore();
 const alert_open = ref(false);
 
 const navigate = (path: string) => {
     return navigateTo(path);
 };
 
-// function handleUpdateStation(rowIndex: number, columnId: string, value: any) {
-//     sessionStore.updateStation(rowIndex, columnId, value);
-//     // https://github.com/TanStack/table/pull/5687#issuecomment-2281067245
-//     // data is shadowRef, must mutate full data
-// }
+function handleUpdateRun(slotIndex: number, runIndex: number, columnId: string, new_duration: TimeDuration) {
+    sessionStore.onRunTimeChanged(slotIndex, runIndex, columnId, new_duration);
+}
 
-const templateSelected = (event) => {
-  sessionStore.applyTemplate(event);
-  toast.success("Template applied");
-};
+provide("update-runs", handleUpdateRun);
 
 const return_home = () => {
     sessionStore.resetpayload();

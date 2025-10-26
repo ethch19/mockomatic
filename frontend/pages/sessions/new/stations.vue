@@ -1,30 +1,10 @@
 <template>
-    <div class="flex-column py-[1rem] px-[3rem] text h-full">
+    <div class="flex-column py-4 px-12 text h-full">
         <h2 class="subtitle">Create Session</h2>
-        <div>
-            <Stepper>
-                <StepperItem :step=1>
-                    <StepperTitle>Session Details</StepperTitle>
-                    <StepperSeparator />
-                </StepperItem>
-                <StepperItem :step=2>
-                    <StepperTitle>Stations</StepperTitle>
-                    <StepperSeparator />
-                </StepperItem>
-                <StepperItem :step=3>
-                    <StepperTitle>Timings</StepperTitle>
-                    <StepperSeparator />
-                </StepperItem>
-                <StepperItem :step=4>
-                    <StepperTitle>Summary</StepperTitle>
-                    <StepperSeparator />
-                </StepperItem>
-            </Stepper>
-        </div>
+        <ProgressBar class="py-5" :start_step=1 :items="sessionStore.session_stepper" />
         <StationCreationTable
-            class="self-center max-w-md w-[30rem] my-auto"
+            class="self-center max-w-md w-120 my-auto"
             :columns="columns"
-            v-model:data="stations"
             @update-station="handleUpdateStation"
         />
         <div class="flex-row justify-between">
@@ -59,21 +39,21 @@ import { useSessionCreationStore } from "~/stores/sessionCreation";
 import { columns } from "~/components/station-creation-table/columns";
 import StationCreationTable from "~/components/station-creation-table/StationCreationTable.vue";
 import type { StationPayload } from "~/utils/types";
+import { toast } from "vue-sonner";
 
 const sessionStore = useSessionCreationStore();
 const router = useRouter();
 const loading = ref(false);
-const { payload } = storeToRefs(sessionStore);
-const stations = computed(() => payload.value.stations);
 const alert_open = ref(false);
 
-watch(stations, (newStations) => {
-  console.log('✅ The computed `stations` prop has updated!', newStations);
-  console.log(sessionStore.payload.stations)
-}, { deep: true });
-
 const navigate = (path: string) => {
-    return navigateTo(path);
+    const valid = sessionStore.validateStations();
+    if (valid == true){
+        sessionStore.recalculateTimings();
+        return navigateTo(path);
+    } else {
+        toast.error(valid);
+    }
 };
 
 function handleUpdateStation(rowIndex: number, columnId: string, value: any) {
@@ -83,8 +63,8 @@ function handleUpdateStation(rowIndex: number, columnId: string, value: any) {
 }
 
 const templateSelected = (event) => {
-  sessionStore.applyTemplate(event);
-  toast.success("Template applied");
+    sessionStore.applyTemplate(event);
+    toast.success("Template applied");
 };
 
 const return_home = () => {

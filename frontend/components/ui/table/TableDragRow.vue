@@ -23,21 +23,13 @@ watchEffect((onCleanup) => {
     const currentElement = unrefElement(elRef)
     if (!currentElement) return;
 
-
-    console.log(props.idRef);
     const rowData = { ...props.item };
     const rowId: string = rowData[props.idRef];
-
-    console.log("Row ID:", rowId);
-    console.log("Row Data:", rowData);
 
     const dragHandleElement = currentElement.querySelector<HTMLElement>('[data-drag-handle="true"]');
     if (!dragHandleElement) {
         return;
-    } else {
-        console.log('Drag handle found');
-        console.log(dragHandleElement);
-    };
+    }
 
     const dndFunction = combine(
         draggable({
@@ -113,10 +105,10 @@ watchEffect((onCleanup) => {
         <slot />
         <!-- <div class="absolute border-t-2 border-(--secondary) top-0 left-0 right-0"></div> -->
         <div v-if="instruction"
-        :class="cn('absolute h-full left-0 right-0 bottom-0 top-0 border-(--secondary)', 
+        :class="cn('absolute h-full left-0 right-0 bottom-0 top-0 border-secondary)', 
         { 
-            '!border-t-2': instruction?.operation === 'reorder-before',
-            '!border-b-2': instruction?.operation === 'reorder-after',
+            'border-t-2!': instruction?.operation === 'reorder-before',
+            'border-b-2!': instruction?.operation === 'reorder-after',
         })" />
     </tr>
 </template>

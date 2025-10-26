@@ -1,5 +1,5 @@
 <template>
-  <div class="flex-column gap-[1rem]">
+  <div class="flex-column gap-4">
     <div class="border rounded-md h-full">
         <Table>
             <TableHeader>
@@ -14,16 +14,27 @@
             </TableHeader>
             <TableDragBody @reorder="reorderStation">
                 <template v-if="table.getRowModel().rows?.length">
-                    <TableDragRow
-                        v-for="row in table.getRowModel().rows" :key="row.id"
-                        :data-state="row.getIsSelected() ? 'selected' : undefined"
-                        :item="row.original as TData"
-                        id-ref="index"
-                    >
-                        <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
-                            <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
-                        </TableCell>
-                    </TableDragRow>
+                    <template v-if="!view_only">
+                        <TableDragRow
+                            v-for="row in table.getRowModel().rows" :key="row.id"
+                            :data-state="row.getIsSelected() ? 'selected' : undefined"
+                            :item="row.original as TData"
+                            id-ref="index"
+                        >
+                            <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+                                <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+                            </TableCell>
+                        </TableDragRow>
+                    </template>
+                    <template v-else>
+                        <TableRow
+                            v-for="row in table.getRowModel().rows" :key="row.id"
+                        >
+                            <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+                                <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+                            </TableCell>
+                        </TableRow>
+                    </template>
                 </template>
                 <template v-else>
                     <TableRow>
@@ -35,12 +46,12 @@
             </TableDragBody>
         </Table>
     </div>
-    <div class="flex-row justify-between items-center py-1 h-[3rem]">
+    <div v-if="!view_only" class="flex-row justify-between items-center py-1 h-12">
         <div class="text-sm text-(--text-2)">
             {{ table.getSelectedRowModel().rows.length }} of
             {{ table.getRowModel().rows.length }} station(s) selected.
         </div>
-        <div class="flex-row justify-end gap-[0.5rem] h-full">
+        <div class="flex-row justify-end gap-2 h-full">
             <Button
                 class="h-full text-(--text-2)"
                 variant="destructive"
@@ -75,22 +86,24 @@ import {
 import { valueUpdater } from '@/lib/utils'
 import { useSessionCreationStore } from '~/stores/sessionCreation';
 import { toast } from "vue-sonner";
-import TableCaption from '../ui/table/TableCaption.vue';
+
+interface StationProps {
+    columns: ColumnDef<TData, TValue>[];
+    view_only?: boolean;
+}
+const { columns, view_only = false } = defineProps<StationProps>()
 
 const sessionStore = useSessionCreationStore();
-
-const props = defineProps<{
-    columns: ColumnDef<TData, TValue>[]
-}>()
-const data = defineModel<TData[]>('data', { required: true })
+const { payload } = storeToRefs(sessionStore);
+const stations = computed(() => payload.value.stations);
 const emit = defineEmits(["update-station"]);
 
 const rowSelection = ref({})
 const sorting = ref<SortingState>([])
 
 const table = useVueTable({
-    get data() { return data.value },
-    get columns() { return props.columns },
+    get data() { return stations.value },
+    get columns() { return columns },
     getRowId: row => row.index,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -116,9 +129,11 @@ const deleteSelected = () => {
     console.log("Delete selected stations", table.getSelectedRowModel().rows);
     // remove all selection after deletion
     sessionStore.deleteSelectedStations(table.getSelectedRowModel().rows);
+    table.resetRowSelection(true);
 };
 
 const reorderStation = ({ rowId, targetRowId, instruction }) => {
     sessionStore.reorderStation(rowId, targetRowId, instruction);
+    table.resetRowSelection(true);
 };
 </script>

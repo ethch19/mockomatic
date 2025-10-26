@@ -1,207 +1,121 @@
 <template>
-  <div class="wizard-container text">
-    <div class="main-container flex-column">
-      <h2>Create New Session</h2>
-      <Card class="session-form">
-        <template #title>Step 5: Review</template>
-        <template #content>
-          <div class="form-section">
-            <h3>Configuration</h3>
-            <p><strong>Organisation:</strong> {{ sessionStore.form.session.organisation }}</p>
-            <p><strong>Scheduled Date:</strong> {{ formatDate(sessionStore.form.session.scheduled_date) }}</p>
-            <p><strong>Location:</strong> {{ sessionStore.form.session.location }}</p>
-            <p v-if="!sessionStore.form.session.feedback"><strong>Feedback:</strong> {{ sessionStore.form.session.feedback ? "Yes" : "No" }}</p>
-            <p v-if="sessionStore.form.session.feedback"><strong>Feedback Duration:</strong> {{ formatInterval(sessionStore.form.session.feedback_duration) }}</p>
-            <p><strong>Intermission Duration:</strong> {{ formatInterval(sessionStore.form.session.intermission_duration) }}</p>
-            <p><strong>Static at End:</strong> {{ sessionStore.form.session.static_at_end ? "Yes" : "No" }}</p>
-            <br>
-            <h3>Stations</h3>
-            <DataTable :value="sessionStore.stationsMinutes" :scrollable="true">
-              <Column field="title" header="Title" />
-              <Column field="duration" header="Duration (min)" />
-            </DataTable>
-            <br>
-            <h3>Slots</h3>
-            <template v-for="cur_slot in sessionStore.form.slots" :key="cur_slot.key">
-              <h4>{{ "Slot " + cur_slot.key }}</h4>
-              <DataTable :value="cur_slot.runs" :scrollable="true">
-                <Column field="scheduled_start" header="Scheduled Start">
-                  <template #body="{ data }">
-                    {{ data.scheduled_start }}
-                  </template>
-                </Column>
-                <Column field="scheduled_end" header="Scheduled End">
-                  <template #body="{ data }">
-                    {{ data.scheduled_end }}
-                  </template>
-                </Column>
-                <Column field="flip_allocation" header="Flip Allocation">
-                  <template #body="{ data }">
-                    {{ data.flip_allocation ? "Yes" : "No" }}
-                  </template>
-                </Column>
-              </DataTable>
-              <DataTable :value="cur_slot.circuits" :scrollable="true">
-                <template #header>
-                  <h4>Runs</h4>
-                </template>
-                <Column field="key" header="Key">
-                  <template #body="{ data }">
-                    {{ data.key }}
-                  </template>
-                </Column>
-                <Column field="female_only" header="Female Only">
-                  <template #body="{ data }">
-                    {{ data.female_only ? "Yes" : "No" }}
-                  </template>
-                </Column>
-              </DataTable>
-            </template>
-          </div>
-          <div class="wizard-actions">
-            <Button label="Previous" icon="pi pi-arrow-left" class="p-button-secondary" @click="previousStep" />
-            <Button label="Submit" icon="pi pi-check" class="p-button-primary" @click="submitForm" />
-            <Button label="Cancel" icon="pi pi-times" class="p-button-secondary p-button-text" @click="cancel" />
-          </div>
-        </template>
-      </Card>
+    <div class="flex-column py-4 px-12 text h-full">
+        <h2 class="subtitle">Create Session</h2>
+        <ProgressBar class="py-5" :start_step=3 :items="sessionStore.session_stepper" />
+        <div class="mb-auto w-full grid grid-flow-col-dense auto-cols-min gap-x-5">
+            <div class="flex flex-col gap-y-5">
+                <PropCard class="min-w-60 w-fit h-fit" :data="sessionData" />
+                <IntervalTable class="w-fit h-fit" :columns="intervalColumn" :data="intervalData" />
+            </div>
+            <StationCreationTable class="w-fit h-fit" :columns="stationColumn" :view_only="true" />
+            <SlotCreationTable class="w-fit h-fit" :columns="slotColumn" :sub_columns="runColumn" :view_only="true" />
+        </div>
+        <div class="flex-row justify-between">
+            <Button @click="navigate('/sessions/new/timings')">
+                <iconify-icon icon="lucide:chevron-left" width="24" height="24"></iconify-icon>
+                Previous
+            </Button>
+            <Button @click="pushCreateSession">
+                Submit
+                <iconify-icon v-show="!loading" icon="lucide:send-horizontal" width="24" height="24"></iconify-icon>
+                <iconify-icon v-show="loading" icon="svg-spinners:180-ring" width="24" height="24" ></iconify-icon>
+            </Button>
+        </div>
+        <AlertDialog v-model:open="alert_open">
+            <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>You have unsaved changes</AlertDialogTitle>
+                <AlertDialogDescription>
+                This action cannot be undone. Are you sure you want to cancel and lose progress?
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction>Continue</AlertDialogAction>
+            </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     </div>
-  </div>
 </template>
 
 <script lang="ts" setup>
 import { useSessionCreationStore } from "~/stores/sessionCreation";
-import { apiFetch } from "~~/composables/apiFetch";
+import { useAuthStore } from "~/stores/auth";
+import { DateFormatter, getLocalTimeZone } from "@internationalized/date";
+import { columns as slotColumn } from "~/components/slot-creation-table/columns-view.ts";
+import { columns as runColumn } from "~/components/slot-creation-table/columns-runs-view.ts";
+import { columns as stationColumn } from "~/components/station-creation-table/columns-view.ts";
+import { columns as intervalColumn } from "~/components/interval-table/columns.ts";
+import { toast } from "vue-sonner";
 
-definePageMeta({
-  layout: "default",
+const router = useRouter();
+const sessionStore = useSessionCreationStore();
+const authStore = useAuthStore();
+const alert_open = ref(false);
+const loading = ref(false);
+
+const df = new DateFormatter("en-UK", {
+    dateStyle: "long",
+})
+
+const intervalData = computed(() => {
+    return [
+        { name: "Intermission", duration: sessionStore.payload.session.intermission_duration },
+        { name: "Feedback", duration: sessionStore.payload.session.feedback ? sessionStore.payload.session.feedback_duration : false },
+        { name: "Static At End", duration: sessionStore.payload.session.static_at_end ? sessionStore.payload.stations[sessionStore.payload.stations.length - 1] : false },
+    ];
 });
 
-const sessionStore = useSessionCreationStore();
-const router = useRouter();
+const sessionData = computed(() => {
+    return [
+        { title: "Date", value: sessionStore.payload.session.scheduled_date != null ? df.format(sessionStore.payload.session.scheduled_date.toDate(getLocalTimeZone())) : "None" },
+        { title: "Location", value: sessionStore.payload.session.location },
+        { title: "Organisation", value: authStore.organisation },
+    ];
+});
 
-const prepareFormData = () => {
-  const scheduledDate = sessionStore.form.session.scheduled_date;
-  return {
-    ...sessionStore.form,
-    session: {
-      ...sessionStore.form.session,
-      scheduled_date: formatDateForBackend(scheduledDate),
-    },
-    slots: sessionStore.form.slots.map(slot => ({
-      ...slot,
-      runs: slot.runs.map(run => ({
-        scheduled_start: formatTimeForBackend(scheduledDate, run.scheduled_start),
-        scheduled_end: formatTimeForBackend(scheduledDate, run.scheduled_end),
-        flip_allocation: run.flip_allocation,
-      })),
-    })),
-  };
+const pushCreateSession = async () => {
+    if (loading.value) { return; }
+    loading.value = true;
+    const response = await sessionStore.pushSession();
+    loading.value = false;
+    if (response) {
+        navigateTo("/");
+    }
+}
+
+const navigate = (path: string) => {
+    return navigateTo(path);
 };
 
-const submitForm = async () => {
-  try {
-    console.log(prepareFormData());
-    const response = await apiFetch("/sessions/create", {
-      method: "POST",
-      body: prepareFormData(),
-    });
-    sessionStore.resetForm();
-    console.log(response.id);
-    router.push(`/sessions/${response.id}`);
-  } catch (error) {
-    console.error("Submit error:", error);
-  }
-};
-
-const formatDate = (date) => {
-  return date ? new Date(date).toLocaleDateString() : "N/A";
-};
-
-const formatInterval = (interval) => {
-  if (!interval || typeof interval !== "object") return "N/A";
-  const minutes = Math.floor(interval.microseconds / (1_000_000 * 60));
-  const seconds = Math.floor((interval.microseconds % (1_000_000 * 60)) / 1_000_000);
-  return `${minutes}:${seconds.toString().padStart(2, "0")} min`;
-};
-
-// Convert HH:mm to ISO 8601 with scheduled_date
-const formatTimeForBackend = (date: Date | null, time: string | null): string | null => {
-  if (!date || !time) return null;
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const [hours, minutes] = time.split(":");
-  // Format as ISO 8601 with UTC (Z)
-  return `${year}-${month}-${day}T${hours.padStart(2, "0")}:${minutes.padStart(2, "0")}:00Z`;
-};
-
-// Format Date object to YYYY-MM-DD
-const formatDateForBackend = (date: Date | null): string | null => {
-  if (!date) return null;
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0"); // Months are 0-indexed
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
-const previousStep = () => {
-  sessionStore.step = 4;
-  router.push("/sessions/new/circuits");
+const return_home = () => {
+    sessionStore.resetpayload();
+    return navigateTo("/");
 };
 
 const cancel = () => {
-  if (sessionStore.isDirty) {
-    if (confirm("You have unsaved changes. Are you sure you want to cancel and lose progress?")) {
-      sessionStore.resetForm();
-      router.push("/");
+    if (sessionStore.isDirty) {
+        alert_open.value = true;
+    } else {
+        return return_home();
     }
-  } else {
-    sessionStore.resetForm();
-    router.push("/");
-  }
 };
 
-onBeforeMount(() => {
-  window.onbeforeunload = () => {
-    if (sessionStore.isDirty) {
-      return "You have unsaved changes. Are you sure you want to leave?";
+onBeforeMount(async () => {
+    window.onbeforeunload = () => {
+        if (sessionStore.isDirty) {
+            return "You have unsaved changes. Are you sure you want to leave?";
+        }
+    };
+    if (!sessionStore.fetchedTemplate) {
+        await sessionStore.fetchTemplates();
     }
-  };
 });
 
 onUnmounted(() => {
-  window.onbeforeunload = null;
-  if (!router.currentRoute.value.path.startsWith("/sessions/new")) {
-    sessionStore.resetForm();
-  }
+    window.onbeforeunload = null;
+    if (!router.currentRoute.value.path.startsWith("/sessions/new")) {
+        sessionStore.resetpayload();
+    }
 });
 </script>
-
-<style scoped>
-.wizard-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 2rem;
-  width: 100%;
-}
-
-.main-container {
-  width: 50%;
-}
-
-.session-form {
-  width: 100%;
-}
-
-.form-section {
-  margin-bottom: 2rem;
-}
-
-.wizard-actions {
-  display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
-}
-</style>

@@ -1,5 +1,5 @@
 <template>
-  <div class="flex-column gap-[1rem]">
+  <div class="flex-column gap-4">
     <div class="border rounded-md h-full">
         <Table>
             <TableHeader>
@@ -33,12 +33,12 @@
             </TableBody>
         </Table>
     </div>
-    <div class="flex-row justify-between items-center px-[1rem] py-1 h-[3rem]">
+    <div class="flex-row justify-between items-center px-4 py-1 h-12">
         <div class="text-sm text-(--text-2)">
             {{ table.getFilteredSelectedRowModel().rows.length }} of
             {{ table.getFilteredRowModel().rows.length }} session(s) selected.
         </div>
-        <div class="flex-row justify-end gap-[0.5rem] h-full">
+        <div class="flex-row justify-end gap-2 h-full">
             <Button
                 class="h-full text-(--text-2)"
                 variant="outline"
@@ -57,7 +57,7 @@
             >
                 Next
             </Button>
-            <Input class="h-full w-min min-w-[2.5rem] max-w-[3.5rem]" type="page" :disabled="!(table.getPageCount() > 1)" placeholder="1" v-model="currentPage" ref="pageInput" @keydown="pagechange"/>
+            <Input class="h-full w-min min-w-10 max-w-14" type="page" :disabled="!(table.getPageCount() > 1)" placeholder="1" v-model="currentPage" ref="pageInput" @keydown="pagechange"/>
             <div class="flex items-center space-x-2 h-full">
                 <p class="text-sm font-medium text-(--text-2)">
                 Sessions per page

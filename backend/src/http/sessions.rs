@@ -201,6 +201,8 @@ impl Session {
                 return Err(AppError::from(anyhow!("Feedback duration is given but feedback is set to false")));
             }
         }
+
+        // REFACTOR: make static at end calculated in backend, not passed from frontend
         if let Some(st_duration) = req.stations.first() {
             for i in 0..req.stations.len() { // station duration checker
                 if i == req.stations.len() - 1 && session_payload.static_at_end { // check if the last station is different only if static at end is true
@@ -447,18 +449,17 @@ impl Session {
         }
 
         trace!("Delete Session Triggered");
-        for session_id in &session.ids {
-            let _ = sqlx::query!(
-                r#"
-                DELETE FROM records.sessions
-                WHERE id = $1
-                "#,
-                session_id
-            )
-            .execute(&pool)
-            .await
-            .with_context(|| format!("Cannot delete session with ID: {}", session_id))?;
-        }
+        let _ = sqlx::query!(
+            r#"
+            DELETE FROM records.sessions
+            WHERE id = ANY($1) AND organisation_id = $2
+            "#,
+            &session.ids,
+            claim.organisation_id
+        )
+        .execute(&pool)
+        .await
+        .with_context(|| format!("Cannot delete sessions"))?;
 
         Ok(StatusCode::OK.into_response())
     }

@@ -9,7 +9,7 @@ use anyhow::{anyhow, Context};
 
 use crate::error::AppError;
 
-use super::{runs::RunTime, users::{AccessClaims, User}, AppState, SomethingID, SomethingMultipleID, allocations::Availability};
+use super::{runs::RunTime, users::{AccessClaims, User}, AppState, SomethingID, allocations::Availability};
 
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
@@ -68,6 +68,12 @@ pub struct ExaminerChange {
     pub checked_in: Option<bool>, 
 }
 
+#[derive(Deserialize)]
+pub struct DeleteExaminerPayload {
+    pub session_id: Uuid,
+    pub ids: Vec<Uuid>,
+}
+
 async fn get_by_id(
     State(pool): State<sqlx::PgPool>,
     examiner: Query<SomethingID>,
@@ -92,7 +98,7 @@ async fn create(
     if !User::is_admin(&pool, &claim.id).await? {
         return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
     }
-    let result = Examiner::create(&pool, examiner).await?;
+    let result = Examiner::create(&pool, claim.organisation_id, examiner).await?;
     Ok((StatusCode::OK, Json(result)).into_response())
 }
 
@@ -104,11 +110,11 @@ async fn update(
     if !User::is_admin(&pool, &claim.id).await? {
         return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
     }
-    let result = Examiner::update(pool, examiner).await?;
+    let result = Examiner::update(pool, claim.organisation_id, examiner).await?;
     Ok((StatusCode::OK, Json(result)).into_response())
 }
 
-pub async fn create_fill(session_id: Uuid, pool: &sqlx::PgPool, time: Option<Availability>, female: bool) -> Result<Examiner, AppError> {
+pub async fn create_fill(session_id: Uuid, organisation_id: Uuid, pool: &sqlx::PgPool, time: Option<Availability>, female: bool) -> Result<Examiner, AppError> {
     if let Some(exam_ava) = time {
         let examiner = ExaminerPayload {
             session_id,
@@ -120,7 +126,7 @@ pub async fn create_fill(session_id: Uuid, pool: &sqlx::PgPool, time: Option<Ava
             pm: exam_ava.pm,
             checked_in: false,
         };
-        Examiner::create(pool, examiner).await
+        Examiner::create(pool, organisation_id, examiner).await
     } else {
         let examiner = ExaminerPayload {
             session_id,
@@ -132,19 +138,19 @@ pub async fn create_fill(session_id: Uuid, pool: &sqlx::PgPool, time: Option<Ava
             pm: true,
             checked_in: false,
         };
-        Examiner::create(pool, examiner).await
+        Examiner::create(pool, organisation_id, examiner).await
     }
 }
 
 async fn delete(
     State(pool): State<sqlx::PgPool>,
     Extension(claim): Extension<AccessClaims>,
-    Json(examiner): Json<SomethingMultipleID>,
+    Json(examiner): Json<DeleteExaminerPayload>,
 ) -> Result<impl IntoResponse, AppError> {
     if !User::is_admin(&pool, &claim.id).await? {
         return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
     }
-    Examiner::delete(pool, examiner.ids).await?;
+    Examiner::delete(pool, claim.organisation_id, examiner).await?;
     Ok((StatusCode::OK).into_response())
 }
 
@@ -303,9 +309,24 @@ impl Examiner {
 
     pub async fn create(
         pool: &sqlx::PgPool,
+        organisation_id: Uuid,
         examiner: ExaminerPayload,
     ) -> Result<Examiner, AppError> {
-        sqlx::query_as!(
+        let mut transaction = pool.begin().await.with_context(|| "Unable to create a transaction in database")?;
+
+        sqlx::query!(
+            r#"
+            SELECT organisation_id FROM records.sessions
+            WHERE id = $1 AND organisation_id = $2
+            "#,
+            &examiner.session_id, // given by client
+            &organisation_id // from claims
+        )
+        .fetch_one(&mut *transaction)
+        .await
+        .with_context(|| format!("Session not found or you do not have permission for this operation"))?;
+
+        let examiner = sqlx::query_as!(
             Examiner,
             r#"
             INSERT INTO people.examiners (session_id, first_name, last_name, shortcode, female, am, pm, checked_in)
@@ -321,16 +342,34 @@ impl Examiner {
             examiner.pm,
             examiner.checked_in
         )
-        .fetch_one(pool)
+        .fetch_one(&mut *transaction)
         .await
-        .map_err(|_| AppError::from(anyhow!("Cannot create new examiner")))
+        .with_context(|| format!("Cannot create examiner"))?;
+
+        transaction.commit().await.with_context(|| format!("Transaction failed to commit"))?;
+        Ok(examiner)
     }
 
     pub async fn update(
         pool: sqlx::PgPool,
+        organisation_id: Uuid,
         examiner: ExaminerChange,
     ) -> Result<Examiner, AppError> {
-        sqlx::query_as!(
+        let mut transaction = pool.begin().await.with_context(|| "Unable to create a transaction in database")?;
+
+        sqlx::query!(
+            r#"
+            SELECT organisation_id FROM records.sessions
+            WHERE id = $1 AND organisation_id = $2
+            "#,
+            &examiner.session_id, // given by client
+            &organisation_id // from claims
+        )
+        .fetch_one(&mut *transaction)
+        .await
+        .with_context(|| format!("Session not found or you do not have permission for this operation"))?;
+
+        let examiner = sqlx::query_as!(
             Examiner,
             r#"
             UPDATE people.examiners
@@ -355,31 +394,48 @@ impl Examiner {
             examiner.pm,
             examiner.checked_in
         )
-        .fetch_one(&pool)
+        .fetch_one(&mut *transaction)
         .await
-        .map_err(|_| AppError::from(anyhow!("Cannot update examiner")))
+        .with_context(|| format!("Cannot update examiner"))?;
+
+        transaction.commit().await.with_context(|| format!("Transaction failed to commit"))?;
+        Ok(examiner)
     }
 
     pub async fn delete(
         pool: sqlx::PgPool,
-        examiner_ids: Vec<Uuid>,
+        organisation_id: Uuid,
+        examiners: DeleteExaminerPayload,
     ) -> Result<(), AppError> {
-        let mut transaction = pool.begin().await.with_context(|| "Unable to create a transaction in database")?;
+        let mut transaction = pool.begin().await.with_context(|| "Failed to start database transaction")?;
 
-        for examiner_id in &examiner_ids {
-            sqlx::query!(
-                r#"
-                DELETE FROM people.examiners
-                WHERE id = $1
-                "#,
-                examiner_id
-            )
-            .execute(&mut *transaction)
-            .await
-            .with_context(|| format!("Cannot delete examiner with id: {}", examiner_id))?;
-        }
+        sqlx::query!(
+            r#"
+            SELECT organisation_id FROM records.sessions
+            WHERE id = $1 AND organisation_id = $2
+            "#,
+            &examiners.session_id, // given by client
+            &organisation_id // from claims
+        )
+        .fetch_one(&mut *transaction)
+        .await
+        .with_context(|| format!("Session not found or you do not have permission for this operation"))?;
 
-        transaction.commit().await.with_context(|| format!("Rolled back successful. Transaction failed to commit"))?;
+        sqlx::query!(
+            r#"
+            DELETE FROM people.examiners
+            WHERE id = ANY($1) AND session_id = $2
+            "#,
+            &examiners.ids,
+            &examiners.session_id
+        )
+        .execute(&mut *transaction)
+        .await
+        .with_context(|| format!("Failed to delete examiners"))?;
+
+        transaction.commit().await
+            .with_context(|| "Failed to commit changes to the database")?;
+
         Ok(())
     }
 }

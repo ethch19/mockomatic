@@ -1,6 +1,6 @@
 import { string } from "zod";
 import { Time } from "@internationalized/date"
-import type { DateValue } from "@internationalized/date"
+import type { CalendarDate, ZonedDateTime } from "@internationalized/date"
 
 export type AuthBody = {
     access_token: string;
@@ -16,11 +16,11 @@ export type PgInterval = {
     microseconds: number;
 }
 
-export interface ISession {
+export type PrimitiveSession = {
     id: string;
     organiser_id: string;
     organisation_id: string;
-    scheduled_date: DateValue;
+    scheduled_date: string;
     location: string;
     total_stations: number;
     feedback: boolean;
@@ -31,13 +31,28 @@ export interface ISession {
     created_at: string;
 }
 
+export interface ISession {
+    id: string;
+    organiser_id: string;
+    organisation_id: string;
+    scheduled_date: CalendarDate;
+    location: string;
+    total_stations: number;
+    feedback: boolean;
+    feedback_duration: PgInterval | null;
+    intermission_duration: PgInterval;
+    static_at_end: boolean;
+    status: string; // "new" | "prep" | "ready" | "pending" | "running" | "completed"
+    created_at: ZonedDateTime;
+}
+
 export interface ISessionInterval {
     name: string;
     duration: PgInterval | false;
 }
 
 export type SessionPayload = {
-    scheduled_date: DateValue,
+    scheduled_date: CalendarDate,
     location: string,
     intermission_duration: PgInterval,
     feedback: boolean,
@@ -106,9 +121,15 @@ export type TemplateStationPayload = {
     duration: PgInterval;
 }
 
+export interface ITemplateStationPayload {
+    title: string;
+    index: number;
+    duration: PgInterval;
+}
+
 export type TemplatePayload = {
-    session: TemplateSessionPayload;
-    stations: TemplateStationPayload[];
+    template_session: TemplateSessionPayload;
+    template_stations: TemplateStationPayload[];
 }
 
 export type TemplateStation = {

@@ -2,7 +2,7 @@ use anyhow::{Context, anyhow};
 use axum::{extract::{Json, State, Query}, http::StatusCode, response::IntoResponse, routing::{get, post}, Extension};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use super::{users::AccessClaims, AppState, SomethingID, SomethingMultipleID, allocations::Availability, runs::RunTime};
+use super::{users::AccessClaims, AppState, SomethingID, allocations::Availability, runs::RunTime};
 use crate::{error::AppError, http::users::User};
 
 pub fn router() -> axum::Router<AppState> {
@@ -73,6 +73,12 @@ pub struct CandidatesByTime {
     pub candidates: Vec<Candidate>,
 }
 
+#[derive(Deserialize)]
+pub struct DeleteCandidatePayload {
+    pub session_id: Uuid,
+    pub ids: Vec<Uuid>
+}
+
 async fn create(
     State(pool): State<sqlx::PgPool>,
     Extension(claim): Extension<AccessClaims>,
@@ -81,7 +87,7 @@ async fn create(
     if !User::is_admin(&pool, &claim.id).await? {
         return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
     }
-    let result = Candidate::create(&pool, candidate).await?;
+    let result = Candidate::create(&pool, claim.organisation_id, candidate).await?;
     Ok((StatusCode::OK, Json(result)).into_response())
 }
 
@@ -96,16 +102,16 @@ async fn get_session_all(
 async fn delete(
     State(pool): State<sqlx::PgPool>,
     Extension(claim): Extension<AccessClaims>,
-    Json(candidates): Json<SomethingMultipleID>,
+    Json(candidates): Json<DeleteCandidatePayload>,
 ) -> Result<impl IntoResponse, AppError> {
     if !User::is_admin(&pool, &claim.id).await? {
         return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
     }
-    Candidate::delete(pool, candidates.ids).await?;
+    Candidate::delete(pool, claim.organisation_id, candidates).await?;
     Ok((StatusCode::OK).into_response())
 }
 
-pub async fn create_fill(session_id: Uuid, pool: &sqlx::PgPool, time: Option<Availability>, female_only: bool) -> Result<Candidate, AppError> {
+pub async fn create_fill(session_id: Uuid, organsation_id: Uuid, pool: &sqlx::PgPool, time: Option<Availability>, female_only: bool) -> Result<Candidate, AppError> {
     if let Some(can_ava) = time {
         let candidate = CandidatePayload {
             session_id,
@@ -118,7 +124,7 @@ pub async fn create_fill(session_id: Uuid, pool: &sqlx::PgPool, time: Option<Ava
             pm: Some(can_ava.pm),
             checked_in: false,
         };
-        Candidate::create(pool, candidate).await
+        Candidate::create(pool, organsation_id, candidate).await
     } else {
         let candidate = CandidatePayload {
             session_id,
@@ -131,7 +137,7 @@ pub async fn create_fill(session_id: Uuid, pool: &sqlx::PgPool, time: Option<Ava
             pm: Some(true),
             checked_in: false,
         };
-        Candidate::create(pool, candidate).await
+        Candidate::create(pool, organsation_id, candidate).await
     }
 }
 
@@ -301,9 +307,24 @@ impl Candidate {
 
     pub async fn create(
         pool: &sqlx::PgPool,
+        organisation_id: Uuid,
         candidate: CandidatePayload,
     ) -> Result<Candidate, AppError> {
-        sqlx::query_as!(
+        let mut transaction = pool.begin().await.with_context(|| "Unable to create a transaction in database")?;
+
+        sqlx::query!(
+            r#"
+            SELECT organisation_id FROM records.sessions
+            WHERE id = $1 AND organisation_id = $2
+            "#,
+            &candidate.session_id, // given by client
+            &organisation_id // from claims
+        )
+        .fetch_one(&mut *transaction)
+        .await
+        .with_context(|| format!("Session not found or you do not have permission for this operation"))?;
+
+        let candidate = sqlx::query_as!(
             Candidate,
             r#"
             INSERT INTO people.candidates (session_id, first_name, last_name, shortcode, female_only, partner_pref, checked_in, am, pm)
@@ -320,9 +341,12 @@ impl Candidate {
             candidate.am,
             candidate.pm,
         )
-        .fetch_one(pool)
+        .fetch_one(&mut *transaction)
         .await
-        .map_err(|_| AppError::from(anyhow!("Cannot create new candidate")))
+        .map_err(|_| AppError::from(anyhow!("Cannot create new candidate")));
+
+        transaction.commit().await.with_context(|| format!("Transaction failed to commit"))?;
+        return candidate
     }
 
     pub async fn update(
@@ -333,7 +357,22 @@ impl Candidate {
         if !User::is_admin(&pool, &claim.id).await? {
             return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
         }
-        let _ = sqlx::query!(
+
+        let mut transaction = pool.begin().await.with_context(|| "Unable to create a transaction in database")?;
+
+        sqlx::query!(
+            r#"
+            SELECT organisation_id FROM records.sessions
+            WHERE id = $1 AND organisation_id = $2
+            "#,
+            &candidate.session_id, // given by client
+            &claim.organisation_id // from claims
+        )
+        .fetch_one(&mut *transaction)
+        .await
+        .with_context(|| format!("Session not found or you do not have permission for this operation"))?;
+
+        sqlx::query!(
             r#"
             UPDATE people.candidates
             SET
@@ -358,33 +397,47 @@ impl Candidate {
             candidate.am,
             candidate.pm,
         )
-        .execute(&pool)
+        .execute(&mut *transaction)
         .await
         .with_context(|| format!("Cannot update candidate"))?;
+
+        transaction.commit().await.with_context(|| format!("Transaction failed to commit"))?;
 
         Ok(StatusCode::OK.into_response())
     }
 
     pub async fn delete(
         pool: sqlx::PgPool,
-        candidate_ids: Vec<Uuid>,
+        organisation_id: Uuid,
+        candidates: DeleteCandidatePayload,
     ) -> Result<(), AppError> {
         let mut transaction = pool.begin().await.with_context(|| "Unable to create a transaction in database")?;
 
-        for candidate_id in &candidate_ids {
-            sqlx::query!(
-                r#"
-                DELETE FROM people.candidates
-                WHERE id = $1
-                "#,
-                candidate_id
-            )
-            .execute(&mut *transaction)
-            .await
-            .with_context(|| format!("Cannot delete candidate"))?;
-        }
+        sqlx::query!(
+            r#"
+            SELECT organisation_id FROM records.sessions
+            WHERE id = $1 AND organisation_id = $2
+            "#,
+            &candidates.session_id, // given by client
+            &organisation_id // from claims
+        )
+        .fetch_one(&mut *transaction)
+        .await
+        .with_context(|| format!("Session not found or you do not have permission for this operation"))?;
 
-        transaction.commit().await.with_context(|| format!("Rolled back successful. Transaction failed to commit"))?;
+        sqlx::query!(
+            r#"
+            DELETE FROM people.candidates
+            WHERE id = ANY($1) AND session_id = $2
+            "#,
+            &candidates.ids,
+            &candidates.session_id
+        )
+        .execute(&mut *transaction)
+        .await
+        .with_context(|| format!("Failed to delete candidates"))?;
+
+        transaction.commit().await.with_context(|| format!("Transaction failed to commit"))?;
         Ok(())
     }
 }

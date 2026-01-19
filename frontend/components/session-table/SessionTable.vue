@@ -13,7 +13,14 @@
                 </TableRow>
             </TableHeader>
             <TableBody>
-                <template v-if="table.getRowModel().rows?.length">
+                <template v-if="loading">
+                    <TableRow>
+                        <TableCell :colspan="columns.length" class="h-24 text-center">
+                            <iconify-icon icon="svg-spinners:180-ring"></iconify-icon>
+                        </TableCell>
+                    </TableRow>
+                </template>
+                <template v-else-if="table.getRowModel().rows?.length">
                     <TableRow
                         v-for="row in table.getRowModel().rows" :key="row.id"
                         :data-state="row.getIsSelected() ? 'selected' : undefined"
@@ -39,6 +46,12 @@
             {{ table.getFilteredRowModel().rows.length }} session(s) selected.
         </div>
         <div class="flex-row justify-end gap-2 h-full">
+            <div class="flex-row items-center justify-center me-5">
+                <iconify-icon class="text-(--stage-300)" icon="lucide:dot" height="3rem"></iconify-icon>
+                <Label class="h-full text-(--text-2)" for="last_updated">
+                    {{ "Last Updated: " + last_updated }}                
+                </Label>
+            </div>
             <Button
                 class="h-full text-(--text-2)"
                 variant="outline"
@@ -95,16 +108,26 @@ import {
   useVueTable,
 } from '@tanstack/vue-table'
 import { valueUpdater } from '@/lib/utils'
+import { useSessionBrowserStore } from '~/stores/sessionBrowser';
+import { toTime } from '@internationalized/date'
 
 const props = defineProps<{
-  columns: ColumnDef<TData, TValue>[]
-  data: TData[]
+    columns: ColumnDef<TData, TValue>[];
+    data: TData[];
+    loading: boolean;
 }>()
-
 const sorting = ref<SortingState>([])
 const rowSelection = ref({})
 const currentPage = defineModel<string>("1")
 const pageInput = ref<HTMLInputElement | null>(null)
+const sessionBrowserStore = useSessionBrowserStore();
+const last_updated = computed(() => {
+    if (sessionBrowserStore.last_updated) {
+        return toTime(sessionBrowserStore.last_updated).toString().slice(0, 5);
+    } else {
+        return "N/A"
+    }
+});
 
 const pagechange = (event: KeyboardEvent) => {
   if (event.key === "Enter") {

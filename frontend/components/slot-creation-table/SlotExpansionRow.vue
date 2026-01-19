@@ -59,7 +59,7 @@
                         <div class="py-3 flex flex-row justify-start gap-5">
                             <div v-for="circuit in circuits_formatted" class="flex-row gap-2">
                                 <Label>{{ circuit.key }}</Label>
-                                <CustomBadge :name="circuit.female_only ? 'Female' : 'Mixed'" :border_color="circuit.female_only ? 'var(--stage-400)' : 'var(--stage-200)'" />
+                                <CustomBadge :name="circuit.female_only ? 'Female' : 'Mixed'" :border_colour="circuit.female_only ? 'stage-400' : 'stage-200'" />
                             </div>
                         </div>
                     </template>

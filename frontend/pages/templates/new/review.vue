@@ -1,21 +1,20 @@
 <template>
     <div class="flex-column py-4 px-12 text h-full">
-        <h2 class="subtitle">Create Session</h2>
-        <ProgressBar class="py-5" :start_step=3 :items="sessionStore.session_stepper" />
+        <h2 class="subtitle">Create Template</h2>
+        <ProgressBar class="py-5" :start_step=3 :items="templateStore.template_stepper" />
         <div class="mb-auto w-full grid grid-flow-col-dense auto-cols-min gap-x-5">
             <div class="flex flex-col gap-y-5">
-                <PropCard class="min-w-60 w-fit h-fit" :data="sessionData" />
+                <PropCard class="min-w-60 w-fit h-fit" :data="templateData" />
                 <IntervalTable class="w-fit h-fit" :columns="intervalColumn" :data="intervalData" />
             </div>
-            <StationCreationTable class="w-fit h-fit" :columns="stationColumn" :view_only="true" />
-            <SlotCreationTable class="w-fit h-fit" :columns="slotColumn" :sub_columns="runColumn" :view_only="true" />
+            <TemplateStationCreationTable class="w-fit h-fit" :columns="stationColumn" :view_only="true" />
         </div>
         <div class="flex-row justify-between">
-            <Button @click="navigate('/sessions/new/timings')">
+            <Button @click="navigate('/templates/new/stations')">
                 <iconify-icon icon="lucide:chevron-left" width="24" height="24"></iconify-icon>
                 Previous
             </Button>
-            <Button @click="pushCreateSession">
+            <Button @click="pushCreateTemplate">
                 Submit
                 <iconify-icon v-show="!loading" icon="lucide:send-horizontal" width="24" height="24"></iconify-icon>
                 <iconify-icon v-show="loading" icon="svg-spinners:180-ring" width="24" height="24" ></iconify-icon>
@@ -39,45 +38,38 @@
 </template>
 
 <script lang="ts" setup>
-import { useSessionCreationStore } from "~/stores/sessionCreation";
+import { useTemplateCreationStore } from "~/stores/templateCreation";
 import { useAuthStore } from "~/stores/auth";
-import { DateFormatter, getLocalTimeZone } from "@internationalized/date";
-import { columns as slotColumn } from "~/components/slot-creation-table/columns-view.ts";
-import { columns as runColumn } from "~/components/slot-creation-table/columns-runs-view.ts";
-import { columns as stationColumn } from "~/components/station-creation-table/columns-view.ts";
+import { columns as stationColumn } from "~/components/template-station-creation-table/columns-view.ts";
 import { columns as intervalColumn } from "~/components/interval-table/columns.ts";
 import { toast } from "vue-sonner";
+import TemplateStationCreationTable from "~/components/template-station-creation-table/TemplateStationCreationTable.vue";
 
 const router = useRouter();
-const sessionStore = useSessionCreationStore();
+const templateStore = useTemplateCreationStore();
 const authStore = useAuthStore();
 const alert_open = ref(false);
 const loading = ref(false);
 
-const df = new DateFormatter("en-UK", {
-    dateStyle: "long",
-})
-
 const intervalData = computed(() => {
     return [
-        { name: "Intermission", duration: sessionStore.payload.session.intermission_duration },
-        { name: "Feedback", duration: sessionStore.payload.session.feedback ? sessionStore.payload.session.feedback_duration : false },
-        { name: "Static At End", duration: sessionStore.payload.session.static_at_end ? sessionStore.payload.stations[sessionStore.payload.stations.length - 1].duration : false },
+        { name: "Intermission", duration: templateStore.payload.template_session.intermission_duration },
+        { name: "Feedback", duration: templateStore.payload.template_session.feedback ? templateStore.payload.template_session.feedback_duration : false },
+        { name: "Static At End", duration: templateStore.payload.template_session.static_at_end ? templateStore.payload.template_stations[templateStore.payload.template_stations.length - 1].duration : false },
     ];
 });
 
-const sessionData = computed(() => {
+const templateData = computed(() => {
     return [
-        { title: "Date", value: sessionStore.payload.session.scheduled_date != null ? df.format(sessionStore.payload.session.scheduled_date.toDate(getLocalTimeZone())) : "None" },
-        { title: "Location", value: sessionStore.payload.session.location },
+        { title: "Template Name:", value: templateStore.payload.template_session.name },
         { title: "Organisation", value: authStore.organisation },
     ];
 });
 
-const pushCreateSession = async () => {
+const pushCreateTemplate = async () => {
     if (loading.value) { return; }
     loading.value = true;
-    const response = await sessionStore.pushSession();
+    const response = await templateStore.pushTemplate();
     loading.value = false;
     if (response) {
         navigateTo("/");
@@ -89,12 +81,12 @@ const navigate = (path: string) => {
 };
 
 const return_home = () => {
-    sessionStore.resetpayload();
+    templateStore.resetpayload();
     return navigateTo("/");
 };
 
 const cancel = () => {
-    if (sessionStore.isDirty) {
+    if (templateStore.isDirty) {
         alert_open.value = true;
     } else {
         return return_home();
@@ -103,19 +95,16 @@ const cancel = () => {
 
 onBeforeMount(async () => {
     window.onbeforeunload = () => {
-        if (sessionStore.isDirty) {
+        if (templateStore.isDirty) {
             return "You have unsaved changes. Are you sure you want to leave?";
         }
     };
-    if (!sessionStore.fetchedTemplate) {
-        await sessionStore.fetchTemplates();
-    }
 });
 
 onUnmounted(() => {
     window.onbeforeunload = null;
     if (!router.currentRoute.value.path.startsWith("/sessions/new")) {
-        sessionStore.resetpayload();
+        templateStore.resetpayload();
     }
 });
 </script>

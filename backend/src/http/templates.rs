@@ -42,6 +42,7 @@ struct TemplateSessionWithStations {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TemplateSession {
     pub id: Uuid,
+    pub organisation_id: Uuid,
     pub name: String,
     pub total_stations: i16,
     pub feedback: bool, // validate that if feedback_duration given or feedback = true, then make sure either is valid
@@ -139,10 +140,11 @@ impl TemplateSession {
         let session_result = sqlx::query_as!(
             TemplateSession,
             r#"
-            INSERT INTO templates.sessions (name, total_stations, feedback, feedback_duration, intermission_duration, static_at_end)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO templates.sessions (organisation_id, name, total_stations, feedback, feedback_duration, intermission_duration, static_at_end)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING *
             "#,
+            claim.organisation_id,
             session_payload.name,
             &total_stations,
             session_payload.feedback,
@@ -160,6 +162,7 @@ impl TemplateSession {
 
         let session_result = session_result.unwrap();
         
+        // REFACTOR: check whether stations all have the same duration, or only the last one doesn't
         for station in &req.template_stations {
             let station_result = sqlx::query_as!(
                 TemplateStation,
@@ -331,18 +334,17 @@ impl TemplateSession {
             return Ok((StatusCode::FORBIDDEN, "You do not have access to perform this operation").into_response())
         }
 
-        for session_id in &session.ids {
-            let _ = sqlx::query!(
-                r#"
-                DELETE FROM templates.sessions
-                WHERE id = $1
-                "#,
-                session_id
-            )
-            .execute(&pool)
-            .await
-            .with_context(|| format!("Cannot delete template session with ID: {}", session_id))?;
-        }
+        let _ = sqlx::query!(
+            r#"
+            DELETE FROM templates.sessions
+            WHERE id = ANY($1) AND organisation_id = $2
+            "#,
+            &session.ids,
+            claim.organisation_id
+        )
+        .execute(&pool)
+        .await
+        .with_context(|| format!("Cannot delete template sessions"))?;
 
         Ok(StatusCode::OK.into_response())
     }

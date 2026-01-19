@@ -70,6 +70,7 @@ pub enum PeopleType {
 // Examiners will just leave AM / PM regardless of overlapping slots in AM&PM
 async fn fill_by_time( // AM & PM EXAMINERS
     session_id: &Uuid,
+    organisation_id: &Uuid,
     pool: &sqlx::PgPool,
     total_am_examiners: usize, // including all-day + AM
     total_pm_examiners: usize, // including all-day + PM
@@ -93,7 +94,7 @@ async fn fill_by_time( // AM & PM EXAMINERS
             common_diff = cmp::max(am_examiner_diff, pm_examiner_diff);
         }
         for _ in 0..common_diff {
-            let new_examiner = super::examiners::create_fill(session_id.clone(), pool, None, female).await?;
+            let new_examiner = super::examiners::create_fill(session_id.clone(), organisation_id.clone(), pool, None, female).await?;
             new_full_examiners.push(new_examiner);
         }
         am_examiner_diff -= common_diff;
@@ -101,13 +102,13 @@ async fn fill_by_time( // AM & PM EXAMINERS
     }
     if am_examiner_diff > 0 { // any standalone AM examiners
         for _ in 0..am_examiner_diff {
-            let new_examiner = super::examiners::create_fill(session_id.clone(), pool, Some(Availability { am: true, pm: false }), female).await?;
+            let new_examiner = super::examiners::create_fill(session_id.clone(), organisation_id.clone(), pool, Some(Availability { am: true, pm: false }), female).await?;
             new_am_examiners.push(new_examiner);
         }
     }
     if pm_examiner_diff > 0 { // any standalone PM examiners
         for _ in 0..pm_examiner_diff {
-            let new_examiner = super::examiners::create_fill(session_id.clone(), pool, Some(Availability { am: false, pm: true }), female).await?;
+            let new_examiner = super::examiners::create_fill(session_id.clone(), organisation_id.clone(), pool, Some(Availability { am: false, pm: true }), female).await?;
             new_pm_examiners.push(new_examiner);
         }
     }
@@ -116,6 +117,7 @@ async fn fill_by_time( // AM & PM EXAMINERS
 
 async fn fill_by_slot(  // EXAMINERS ONLY
     session_id: &Uuid,
+    organisation_id: &Uuid,
     pool: &sqlx::PgPool,
     total_examiners: usize, // includes all examiners (female + not)
     total_female_examiners: usize,
@@ -133,7 +135,7 @@ async fn fill_by_slot(  // EXAMINERS ONLY
         return Ok(total_female_examiners - exam_female_circuit_cap);
     } else if total_female_examiners < exam_female_circuit_cap {
         for _ in 0..female_examiner_diff {
-            let _ = super::examiners::create_fill(session_id.clone(), pool, Some(Availability { am, pm, }), true).await?;
+            let _ = super::examiners::create_fill(session_id.clone(), organisation_id.clone(), pool, Some(Availability { am, pm, }), true).await?;
             total_examiners += 1;
         }
     }
@@ -144,7 +146,7 @@ async fn fill_by_slot(  // EXAMINERS ONLY
         return Ok(total_examiners - exam_circuit_cap);
     } else if total_examiners < exam_circuit_cap {
         for _ in 0..examiner_diff {
-            let _ = super::examiners::create_fill(session_id.clone(), &pool, Some(Availability { am, pm }), false).await?;
+            let _ = super::examiners::create_fill(session_id.clone(), organisation_id.clone(), &pool, Some(Availability { am, pm }), false).await?;
         }
     }
     Ok(0)
@@ -152,6 +154,7 @@ async fn fill_by_slot(  // EXAMINERS ONLY
 
 async fn fill_slot_fixed_time(  // CANDIDATES ONLY. for sessions with 1 slot with runs in either AM or PM
     session_id: &Uuid,
+    organisation_id: &Uuid,
     pool: &sqlx::PgPool,
     total_candidates: usize,
     total_female_candidates: usize,
@@ -165,7 +168,7 @@ async fn fill_slot_fixed_time(  // CANDIDATES ONLY. for sessions with 1 slot wit
         return Err(AppError::from(anyhow!("There are more AM/PM female candidates than capacity. {} over from {}", total_female_candidates, can_female_circuit_cap)));
     } else if total_female_candidates < can_female_circuit_cap {
         if total_female_candidates % 2 != 0 {
-            let _ = super::candidates::create_fill(session_id.clone(), pool, Some(Availability { am: am, pm: !am }), true).await?;
+            let _ = super::candidates::create_fill(session_id.clone(), organisation_id.clone(), pool, Some(Availability { am: am, pm: !am }), true).await?;
             total_candidates += 1;
         }
     }
@@ -175,7 +178,7 @@ async fn fill_slot_fixed_time(  // CANDIDATES ONLY. for sessions with 1 slot wit
         return Err(AppError::from(anyhow!("There are more candidates than capacity. {} over from {}", total_candidates, can_circuit_cap)));
     } else if total_candidates < can_circuit_cap {
         if total_candidates % 2 != 0 {
-            let _ = super::candidates::create_fill(session_id.clone(), &pool, Some(Availability { am: am, pm: !am }), false).await?;
+            let _ = super::candidates::create_fill(session_id.clone(), organisation_id.clone(), &pool, Some(Availability { am: am, pm: !am }), false).await?;
         }
     }
     Ok(())
@@ -379,6 +382,7 @@ fn even_split(
 
 async fn fill_any_priority(
     session_id: &Uuid,
+    organisation_id: &Uuid,
     pool: &sqlx::PgPool,
     ppl_type: PeopleType, 
     total_count: usize,
@@ -402,10 +406,10 @@ async fn fill_any_priority(
                     } else if x_fix_count < x_cap {
                         match ppl_type {
                             PeopleType::Candidate => {
-                                super::candidates::create_fill(session_id.clone(), pool, Some(Availability { am: true, pm: false }), true).await?;
+                                super::candidates::create_fill(session_id.clone(), organisation_id.clone(), pool, Some(Availability { am: true, pm: false }), true).await?;
                             },
                             PeopleType::Examiner => {
-                                super::examiners::create_fill(session_id.clone(), pool, Some(Availability { am: true, pm: false }), true).await?;
+                                super::examiners::create_fill(session_id.clone(), organisation_id.clone(), pool, Some(Availability { am: true, pm: false }), true).await?;
                             },
                         };
                     }
@@ -415,10 +419,10 @@ async fn fill_any_priority(
                     } else if y_fix_count < y_cap {
                         match ppl_type {
                             PeopleType::Candidate => {
-                                super::candidates::create_fill(session_id.clone(), pool, Some(Availability { am: false, pm: true }), true).await?;
+                                super::candidates::create_fill(session_id.clone(), organisation_id.clone(), pool, Some(Availability { am: false, pm: true }), true).await?;
                             },
                             PeopleType::Examiner => {
-                                super::examiners::create_fill(session_id.clone(), pool, Some(Availability { am: false, pm: true }), true).await?;
+                                super::examiners::create_fill(session_id.clone(), organisation_id.clone(), pool, Some(Availability { am: false, pm: true }), true).await?;
                             }
                         }
                     }
@@ -426,10 +430,10 @@ async fn fill_any_priority(
                     if x_split < x_cap || y_split < y_cap {
                         match ppl_type {
                             PeopleType::Candidate => {
-                                super::candidates::create_fill(session_id.clone(), pool, Some(Availability { am: true, pm: true }), true).await?;
+                                super::candidates::create_fill(session_id.clone(), organisation_id.clone(), pool, Some(Availability { am: true, pm: true }), true).await?;
                             },
                             PeopleType::Examiner => {
-                                super::examiners::create_fill(session_id.clone(), pool, Some(Availability { am: true, pm: true }), true).await?;
+                                super::examiners::create_fill(session_id.clone(), organisation_id.clone(), pool, Some(Availability { am: true, pm: true }), true).await?;
                             }
                         }
                     } else if x_split > x_cap || y_split > y_cap {
@@ -441,10 +445,10 @@ async fn fill_any_priority(
                 if x_split < x_cap || y_split < y_cap {
                     match ppl_type {
                         PeopleType::Candidate => {
-                            super::candidates::create_fill(session_id.clone(), pool, Some(Availability { am: true, pm: true }), true).await?;
+                            super::candidates::create_fill(session_id.clone(), organisation_id.clone(), pool, Some(Availability { am: true, pm: true }), true).await?;
                         },
                         PeopleType::Examiner => {
-                            super::examiners::create_fill(session_id.clone(), pool, Some(Availability { am: true, pm: true }), true).await?;
+                            super::examiners::create_fill(session_id.clone(), organisation_id.clone(), pool, Some(Availability { am: true, pm: true }), true).await?;
                         }
                     }
                 } else if x_split > x_cap || y_split > y_cap {
@@ -460,19 +464,19 @@ async fn fill_any_priority(
                         if z_flex_count > 0 { // any_count must be 0 or even
                             match ppl_type {
                                 PeopleType::Candidate => {
-                                    super::candidates::create_fill(session_id.clone(), pool, Some(Availability { am: true, pm: true }), true).await?;
+                                    super::candidates::create_fill(session_id.clone(), organisation_id.clone(), pool, Some(Availability { am: true, pm: true }), true).await?;
                                 },
                                 PeopleType::Examiner => {
-                                    super::examiners::create_fill(session_id.clone(), pool, Some(Availability { am: true, pm: true }), true).await?;
+                                    super::examiners::create_fill(session_id.clone(), organisation_id.clone(), pool, Some(Availability { am: true, pm: true }), true).await?;
                                 }
                             }
                         } else {
                             match ppl_type {
                                 PeopleType::Candidate => {
-                                    super::candidates::create_fill(session_id.clone(), pool, Some(Availability { am: true, pm: false }), true).await?;
+                                    super::candidates::create_fill(session_id.clone(), organisation_id.clone(), pool, Some(Availability { am: true, pm: false }), true).await?;
                                 },
                                 PeopleType::Examiner => {
-                                    super::examiners::create_fill(session_id.clone(), pool, Some(Availability { am: true, pm: false }), true).await?;
+                                    super::examiners::create_fill(session_id.clone(), organisation_id.clone(), pool, Some(Availability { am: true, pm: false }), true).await?;
                                 },
                             };
                         }
@@ -484,19 +488,19 @@ async fn fill_any_priority(
                         if z_flex_count > 0 { // any_count must be 0 or even
                             match ppl_type {
                                 PeopleType::Candidate => {
-                                    super::candidates::create_fill(session_id.clone(), pool, Some(Availability { am: true, pm: true }), true).await?;
+                                    super::candidates::create_fill(session_id.clone(), organisation_id.clone(), pool, Some(Availability { am: true, pm: true }), true).await?;
                                 },
                                 PeopleType::Examiner => {
-                                    super::examiners::create_fill(session_id.clone(), pool, Some(Availability { am: true, pm: true }), true).await?;
+                                    super::examiners::create_fill(session_id.clone(), organisation_id.clone(), pool, Some(Availability { am: true, pm: true }), true).await?;
                                 }
                             }
                         } else {
                             match ppl_type {
                                 PeopleType::Candidate => {
-                                    super::candidates::create_fill(session_id.clone(), pool, Some(Availability { am: false, pm: true }), true).await?;
+                                    super::candidates::create_fill(session_id.clone(), organisation_id.clone(), pool, Some(Availability { am: false, pm: true }), true).await?;
                                 },
                                 PeopleType::Examiner => {
-                                    super::examiners::create_fill(session_id.clone(), pool, Some(Availability { am: false, pm: true }), true).await?;
+                                    super::examiners::create_fill(session_id.clone(), organisation_id.clone(), pool, Some(Availability { am: false, pm: true }), true).await?;
                                 }
                             }
                         }
@@ -505,10 +509,10 @@ async fn fill_any_priority(
                     // currently prefer filling with ANY (more flexability, less hard-coded logic)
                     match ppl_type {
                         PeopleType::Candidate => {
-                            super::candidates::create_fill(session_id.clone(), pool, Some(Availability { am: true, pm: true }), true).await?;
+                            super::candidates::create_fill(session_id.clone(), organisation_id.clone(), pool, Some(Availability { am: true, pm: true }), true).await?;
                         },
                         PeopleType::Examiner => {
-                            super::examiners::create_fill(session_id.clone(), pool, Some(Availability { am: true, pm: true }), true).await?;
+                            super::examiners::create_fill(session_id.clone(), organisation_id.clone(), pool, Some(Availability { am: true, pm: true }), true).await?;
                         }
                     }
                 }
@@ -517,10 +521,10 @@ async fn fill_any_priority(
                 if x_fix_count < x_cap && y_fix_count < y_cap {
                     match ppl_type {
                         PeopleType::Candidate => {
-                            super::candidates::create_fill(session_id.clone(), pool, Some(Availability { am: true, pm: true }), true).await?;
+                            super::candidates::create_fill(session_id.clone(), organisation_id.clone(), pool, Some(Availability { am: true, pm: true }), true).await?;
                         },
                         PeopleType::Examiner => {
-                            super::examiners::create_fill(session_id.clone(), pool, Some(Availability { am: true, pm: true }), true).await?;
+                            super::examiners::create_fill(session_id.clone(), organisation_id.clone(), pool, Some(Availability { am: true, pm: true }), true).await?;
                         }
                     }
                 } else if x_fix_count > x_cap {
@@ -585,7 +589,7 @@ async fn gen_new( // for static/initial allocation
                 );
                 candidates = candidate_result?;
                 let female_candidates = female_candidate_result?;
-                fill_slot_fixed_time(&session_id, &pool, candidates.len(), female_candidates.len(), can_circuit_cap, can_female_circuit_cap, true).await?;
+                fill_slot_fixed_time(&session_id, &claim.organisation_id, &pool, candidates.len(), female_candidates.len(), can_circuit_cap, can_female_circuit_cap, true).await?;
                 candidates = Candidate::get_all_by_time(&pool, &session_id, RunTime::AM).await?;
 
                 // female examiners
@@ -599,7 +603,7 @@ async fn gen_new( // for static/initial allocation
                     }
                 } else if total_female_examiners < exam_female_circuit_cap {
                     if total_female_examiners % 2 != 0 {
-                        let _ = super::examiners::create_fill(session_id.clone(), &pool, Some(Availability { am: true, pm: false }), true).await?;
+                        let _ = super::examiners::create_fill(session_id.clone(), claim.organisation_id.clone(), &pool, Some(Availability { am: true, pm: false }), true).await?;
                     }
                 }
 
@@ -610,7 +614,7 @@ async fn gen_new( // for static/initial allocation
                     return Err(AppError::from(anyhow!("There are more examiners than capacity. {} over from {}", total_examiners, exam_circuit_cap)));
                 } else if total_examiners < exam_circuit_cap {
                     if total_examiners % 2 != 0 {
-                        let new_examiner = super::examiners::create_fill(session_id.clone(), &pool, Some(Availability { am: true, pm: false }), false).await?;
+                        let new_examiner = super::examiners::create_fill(session_id.clone(), claim.organisation_id.clone(), &pool, Some(Availability { am: true, pm: false }), false).await?;
                         examiners.push(new_examiner);
                     }
                 }
@@ -623,7 +627,7 @@ async fn gen_new( // for static/initial allocation
                 );
                 candidates = candidate_result?;
                 let female_candidates = female_candidate_result?;
-                fill_slot_fixed_time(&session_id, &pool, candidates.len(), female_candidates.len(), can_circuit_cap, can_female_circuit_cap, false).await?;
+                fill_slot_fixed_time(&session_id, &claim.organisation_id, &pool, candidates.len(), female_candidates.len(), can_circuit_cap, can_female_circuit_cap, false).await?;
                 candidates = Candidate::get_all_by_time(&pool, &session_id, RunTime::PM).await?;
 
                 // female examiners
@@ -637,7 +641,7 @@ async fn gen_new( // for static/initial allocation
                     }
                 } else if total_female_examiners < exam_female_circuit_cap {
                     if total_female_examiners % 2 != 0 {
-                        let _ = super::examiners::create_fill(session_id.clone(), &pool, Some(Availability { am: false, pm: true }), true).await?;
+                        let _ = super::examiners::create_fill(session_id.clone(), claim.organisation_id.clone(), &pool, Some(Availability { am: false, pm: true }), true).await?;
                     }
                 }
 
@@ -648,7 +652,7 @@ async fn gen_new( // for static/initial allocation
                     return Err(AppError::from(anyhow!("There are more examiners than capacity. {} over from {}", total_examiners, exam_circuit_cap)));
                 } else if total_examiners < exam_circuit_cap {
                     if total_examiners % 2 != 0 {
-                        let new_examiner = super::examiners::create_fill(session_id.clone(), &pool, Some(Availability { am: false, pm: true }), false).await?;
+                        let new_examiner = super::examiners::create_fill(session_id.clone(), claim.organisation_id.clone(), &pool, Some(Availability { am: false, pm: true }), false).await?;
                         examiners.push(new_examiner);
                     }
                 }
@@ -661,7 +665,7 @@ async fn gen_new( // for static/initial allocation
                     return Err(AppError::from(anyhow!("There are more female candidates than capacity. {} over from {}", total_female_candidates, can_female_circuit_cap)));
                 } else if total_female_candidates < can_female_circuit_cap {
                     if total_female_candidates % 2 != 0 { // just need to make it even, don't need to fill it all, only examiners need to be filled to MAX
-                        let _ = super::candidates::create_fill(session_id.clone(), &pool, Some(Availability { am: true, pm: true }), true).await?;
+                        let _ = super::candidates::create_fill(session_id.clone(), claim.organisation_id.clone(), &pool, Some(Availability { am: true, pm: true }), true).await?;
                     }
                 }
 
@@ -672,7 +676,7 @@ async fn gen_new( // for static/initial allocation
                     return Err(AppError::from(anyhow!("There are more candidates than capacity. {} over from {}", total_candidates, can_circuit_cap)));
                 } else if total_candidates < can_circuit_cap {
                     if total_candidates % 2 != 0 {
-                        let new_candidate = super::candidates::create_fill(session_id.clone(), &pool, Some(Availability { am: true, pm: true }), false).await?;
+                        let new_candidate = super::candidates::create_fill(session_id.clone(), claim.organisation_id.clone(), &pool, Some(Availability { am: true, pm: true }), false).await?;
                         candidates.push(new_candidate);
                     }
                 }
@@ -704,6 +708,7 @@ async fn gen_new( // for static/initial allocation
 
                 let _ = fill_by_time(
                     &session_id,
+                    &claim.organisation_id,
                     &pool,
                     am_female_examiners.len(),
                     pm_female_examiners.len(),
@@ -722,6 +727,7 @@ async fn gen_new( // for static/initial allocation
                 
                 let (mut new_full_examiners, mut new_am_examiners, mut new_pm_examiners) = fill_by_time(
                     &session_id,
+                    &claim.organisation_id,
                     &pool,
                     am_examiners.len(),
                     pm_examiners.len(),
@@ -851,7 +857,7 @@ async fn gen_new( // for static/initial allocation
             //// FILLING ODD PAIRS BASED ON AM + PM + ANY
             
             // female_candidates
-            fill_any_priority(&session_id, &pool, PeopleType::Candidate,
+            fill_any_priority(&session_id, &claim.organisation_id, &pool, PeopleType::Candidate,
                 can_female_count,
                 can_female_am_only_count,
                 am_can_female_cap,
@@ -880,7 +886,7 @@ async fn gen_new( // for static/initial allocation
             trace!("Candidates: AM-only = {}, PM-only = {}, Any = {}, TOTAL: {}", can_am_only_count, can_pm_only_count, can_any_count, can_count);
 
             // all candidates
-            fill_any_priority(&session_id, &pool, PeopleType::Candidate,
+            fill_any_priority(&session_id, &claim.organisation_id, &pool, PeopleType::Candidate,
                 can_count,
                 can_am_only_count,
                 am_can_cap,
@@ -986,6 +992,7 @@ async fn gen_new( // for static/initial allocation
 
                 let temp_excess = fill_by_slot(
                     &session_id,
+                    &claim.organisation_id,
                     &pool,
                     am_examiners.len(),
                     am_female_examiners.len(),
@@ -1017,6 +1024,7 @@ async fn gen_new( // for static/initial allocation
 
                 let temp_excess = fill_by_slot(
                     &session_id,
+                    &claim.organisation_id,
                     &pool,
                     pm_examiners.len(),
                     pm_female_examiners.len(),
@@ -1048,6 +1056,7 @@ async fn gen_new( // for static/initial allocation
 
                 let temp_excess = fill_by_slot(
                     &session_id,
+                    &claim.organisation_id,
                     &pool,
                     any_examiners.len(),
                     any_female_examiners.len(),

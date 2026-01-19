@@ -83,14 +83,14 @@ export const useSessionCreationStore = defineStore("sessionCreation", {
                         }
                     })
                 }
-                console.log(formatted_payload);
                 const response = await apiFetch("/sessions/create", {
                     method: "POST",
                     body: formatted_payload,
                 });
-                console.log(response);
+                return true;
             } catch (err) {
-                toast.error("Failed to get templates: ", err.data);
+                toast.error("Failed to create session: " + err);
+                return false;
             }
         },
         async fetchTemplates() {
@@ -169,9 +169,6 @@ export const useSessionCreationStore = defineStore("sessionCreation", {
             let newStations = this.payload.stations.toSpliced(rowIndex, 1);
             newStations.splice(newIndex, 0, this.payload.stations[rowIndex])
             newStations.forEach((station, index) => station.index = index);
-            console.log("Triggered");
-            console.log(newStations);
-            console.log(this.payload.stations);
             this.payload.stations = newStations
         },
         validateStations() {

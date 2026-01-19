@@ -7,27 +7,37 @@
         </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem @click="copy(session.id)">
-                Copy session ID
+            <DropdownMenuItem @click="navigateTo('/sessions/'+session.id)" class="flex-row justify-left gap-2">
+                <iconify-icon icon="lucide:pencil-line" width="20" height="20"></iconify-icon>
+                Edit
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>View customer</DropdownMenuItem>
-            <DropdownMenuItem>View payment details</DropdownMenuItem>
+            <DropdownMenuItem @click="delete_session" class="flex-row justify-left gap-2">
+                <iconify-icon icon="lucide:trash-2" width="20" height="20"></iconify-icon>
+                Delete
+            </DropdownMenuItem>
+            <DropdownMenuSeparator/>
+            <DropdownMenuItem @click="copy_id(session.id)" class="flex-row justify-left gap-2">
+                <iconify-icon icon="lucide:copy" width="20" height="20"></iconify-icon>
+                Copy ID
+            </DropdownMenuItem>
         </DropdownMenuContent>
     </DropdownMenu>
 </template>
 
 <script setup lang="ts">
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { useSessionBrowserStore } from '~/stores/sessionBrowser';
 
-defineProps<{
-    session: {
-        id: string
-    }
-}>()
+const props = defineProps<{
+    session: ISession
+}>();
 
-function copy(id: string) {
+const sessionBrowserStore = useSessionBrowserStore();
+
+const copy_id = (id: string) => {
     navigator.clipboard.writeText(id)
+}
+
+const delete_session = async () => {
+    await sessionBrowserStore.deleteSession(props.session.id);
 }
 </script>
